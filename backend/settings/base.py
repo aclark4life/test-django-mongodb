@@ -192,17 +192,18 @@ WAGTAILDOCS_EXTENSIONS = [
 # test-django-mongodb
 ALLOWED_HOSTS = ['*']
 import dj_database_url  # noqa
-# DATABASE_URL = os.environ.get('DATABASE_URL',          'postgres://:@:/test-django-mongodb')
+# DATABASE_URL = os.environ.get('DATABASE_URL', 'mongodb://127.0.0.1:27017/?directConnection=true&serverSelectionTimeoutMS=2000&appName=mongosh+2.2.6')
 # DATABASES['default'] = dj_database_url.parse(DATABASE_URL)
+
 DATABASES = {
     "default": {
         "ENGINE": "django_mongodb",
-        # "NAME": "my_database",
-        # "USER": "my_user",
-        # "PASSWORD": "my_password",
-        # "OPTIONS": {...},
+        "NAME": "test",
+        "USER": "",
+        "PASSWORD": "",
     },
 }
+
 INSTALLED_APPS.append('webpack_boilerplate')
 INSTALLED_APPS.append('rest_framework')
 INSTALLED_APPS.append('rest_framework.authtoken')
