@@ -24,19 +24,19 @@ BASE_DIR = os.path.dirname(PROJECT_DIR)
 # Application definition
 
 INSTALLED_APPS = [
-    "home",
-    "search",
-    "wagtail.contrib.forms",
-    "wagtail.contrib.redirects",
-    "wagtail.embeds",
-    "wagtail.sites",
-    "wagtail.users",
-    "wagtail.snippets",
-    "wagtail.documents",
-    "wagtail.images",
-    "wagtail.search",
-    "wagtail.admin",
-    "wagtail",
+    # "home",
+    # "search",
+    # "wagtail.contrib.forms",
+    # "wagtail.contrib.redirects",
+    # "wagtail.embeds",
+    # "wagtail.sites",
+    # "wagtail.users",
+    # "wagtail.snippets",
+    # "wagtail.documents",
+    # "wagtail.images",
+    # "wagtail.search",
+    # "wagtail.admin",
+    # "wagtail",
     "modelcluster",
     "taggit",
     "django.contrib.admin",
@@ -55,7 +55,7 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "django.middleware.security.SecurityMiddleware",
-    "wagtail.contrib.redirects.middleware.RedirectMiddleware",
+    # "wagtail.contrib.redirects.middleware.RedirectMiddleware",
 ]
 
 ROOT_URLCONF = "backend.urls"
@@ -163,11 +163,11 @@ WAGTAIL_SITE_NAME = "backend"
 
 # Search
 # https://docs.wagtail.org/en/stable/topics/search/backends.html
-WAGTAILSEARCH_BACKENDS = {
-    "default": {
-        "BACKEND": "wagtail.search.backends.database",
-    }
-}
+# WAGTAILSEARCH_BACKENDS = {
+#     "default": {
+#         "BACKEND": "wagtail.search.backends.database",
+#     }
+# }
 
 # Base URL to use when referring to full URLs within the Wagtail admin backend -
 # e.g. in notification emails. Don't include '/admin' or a trailing slash
@@ -209,13 +209,13 @@ INSTALLED_APPS.append('rest_framework')
 INSTALLED_APPS.append('rest_framework.authtoken')
 INSTALLED_APPS.append('allauth')
 INSTALLED_APPS.append('allauth.account')
-INSTALLED_APPS.append('allauth.socialaccount')
-INSTALLED_APPS.append('wagtailmenus')
-INSTALLED_APPS.append('wagtailmarkdown')
-INSTALLED_APPS.append('wagtail_modeladmin')
-INSTALLED_APPS.append('wagtailseo')
-INSTALLED_APPS.append('wagtail_color_panel')
-INSTALLED_APPS.append('wagtail.contrib.settings')
+# INSTALLED_APPS.append('allauth.socialaccount')
+# INSTALLED_APPS.append('wagtailmenus')
+# INSTALLED_APPS.append('wagtailmarkdown')
+# INSTALLED_APPS.append('wagtail_modeladmin')
+# INSTALLED_APPS.append('wagtailseo')
+# INSTALLED_APPS.append('wagtail_color_panel')
+# INSTALLED_APPS.append('wagtail.contrib.settings')
 INSTALLED_APPS.append('django_extensions')
 INSTALLED_APPS.append('crispy_forms')
 INSTALLED_APPS.append('crispy_bootstrap5')
@@ -242,8 +242,8 @@ AUTHENTICATION_BACKENDS = [
     'django.contrib.auth.backends.ModelBackend',
     'allauth.account.auth_backends.AuthenticationBackend',
 ]
-TEMPLATES[0]['OPTIONS']['context_processors'].append('wagtail.contrib.settings.context_processors.settings')
-TEMPLATES[0]['OPTIONS']['context_processors'].append('wagtailmenus.context_processors.wagtailmenus')
+# TEMPLATES[0]['OPTIONS']['context_processors'].append('wagtail.contrib.settings.context_processors.settings')
+# TEMPLATES[0]['OPTIONS']['context_processors'].append('wagtailmenus.context_processors.wagtailmenus')
 SILENCED_SYSTEM_CHECKS = ['django_recaptcha.recaptcha_test_key_error']
 EXPLORER_CONNECTIONS = { 'Default': 'default' }
 EXPLORER_DEFAULT_CONNECTION = 'default'
@@ -263,16 +263,16 @@ LOGGING = {
 }
 INSTALLED_APPS.append('logging_demo')
 INSTALLED_APPS.append('payment')
-INSTALLED_APPS.append('djstripe')
-DJSTRIPE_FOREIGN_KEY_TO_FIELD = 'id'
+# INSTALLED_APPS.append('djstripe')
+# DJSTRIPE_FOREIGN_KEY_TO_FIELD = 'id'
 DJSTRIPE_WEBHOOK_VALIDATION = 'retrieve_event'
 STRIPE_PUBLISHABLE_KEY = os.environ.get('STRIPE_PUBLISHABLE_KEY')
 STRIPE_SECRET_KEY = os.environ.get('STRIPE_SECRET_KEY')
 STRIPE_TEST_SECRET_KEY = os.environ.get('STRIPE_TEST_SECRET_KEY')
 INSTALLED_APPS.append('siteuser')
 AUTH_USER_MODEL = 'siteuser.User'
-INSTALLED_APPS.append('privacy')
-INSTALLED_APPS.append('contactpage')
-INSTALLED_APPS.append('sitepage')
+# INSTALLED_APPS.append('privacy')
+# INSTALLED_APPS.append('contactpage')
+# INSTALLED_APPS.append('sitepage')
 CRISPY_TEMPLATE_PACK = 'bootstrap5'
 CRISPY_ALLOWED_TEMPLATE_PACKS = 'bootstrap5'
