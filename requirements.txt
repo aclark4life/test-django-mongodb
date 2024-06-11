@@ -52,7 +52,6 @@ django-import-export==4.0.7
 django-ipware==7.0.1
 django-js-asset==2.2.0
 django-modelcluster==6.3
-django-mongodb @ https://github.com/mongodb-labs/django-mongodb/archive/refs/heads/main.zip#sha256=ed0f027295bb5532e1b1f9d84b7ce3fa8b7ce890da369ac3f581921c8e611849
 django-multiselectfield==0.1.12
 django-permissionedforms==0.1
 django-phonenumber-field==7.3.0
