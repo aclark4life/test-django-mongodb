@@ -1,1 +1,1 @@
-PROJECT_NAME := test-django-mongodb
+PROJECT_NAME := test_django_mongodb
