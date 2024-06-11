@@ -1,0 +1,1 @@
+https://github.com/mongodb-labs/django-mongodb/archive/refs/heads/main.zip
