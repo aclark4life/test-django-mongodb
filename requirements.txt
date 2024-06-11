@@ -152,4 +152,4 @@ wheel==0.43.0
 whitenoise==6.6.0
 xhtml2pdf==0.2.16
 zopfli==0.2.3
-https://github.com/mongodb-labs/django-mongodb/archive/refs/heads/main.zip
+https://github.com/aclark4life/django-mongodb/archive/refs/heads/main.zip
