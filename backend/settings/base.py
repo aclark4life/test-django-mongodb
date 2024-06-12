@@ -120,7 +120,7 @@ STATIC_URL = "static/"
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.0/ref/settings/#default-auto-field
 
-DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+# DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 import os
 STATICFILES_DIRS = []
 # test_django_mongodb
@@ -163,7 +163,7 @@ THEMES = [
     ('dark', 'Dark Theme'),
 ]
 LOGIN_REDIRECT_URL = '/'
-DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+# DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 AUTHENTICATION_BACKENDS = [
     'django.contrib.auth.backends.ModelBackend',
     # 'allauth.account.auth_backends.AuthenticationBackend',
@@ -173,3 +173,4 @@ EXPLORER_CONNECTIONS = { 'Default': 'default' }
 EXPLORER_DEFAULT_CONNECTION = 'default'
 INSTALLED_APPS.append('siteuser')
 AUTH_USER_MODEL = 'siteuser.User'
+DEFAULT_AUTO_FIELD = "django_mongodb.fields.MongoAutoField"
