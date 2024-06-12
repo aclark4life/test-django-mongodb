@@ -119,6 +119,54 @@ class CustomAdminConfig(AdminConfig):
     default_site = "backend.admin.CustomAdminSite"
 endef
 
+define BACKEND_URLS_DJANGO
+from django.conf import settings
+from django.urls import include, path
+from django.contrib import admin
+from rest_framework import routers, serializers, viewsets
+from dj_rest_auth.registration.views import RegisterView
+from siteuser.models import User
+urlpatterns = []
+if settings.DEBUG:
+	urlpatterns += [
+		path("django/doc/", include("django.contrib.admindocs.urls")),
+	]
+urlpatterns += [
+    path('accounts/', include('allauth.urls')),
+    path('django/', admin.site.urls),
+    path('user/', include('siteuser.urls')),
+    path('explorer/', include('explorer.urls')),
+    path("hijack/", include("hijack.urls")),
+]
+if settings.DEBUG:
+    from django.conf.urls.static import static
+    from django.contrib.staticfiles.urls import staticfiles_urlpatterns
+    # Serve static and media files from development server
+    urlpatterns += staticfiles_urlpatterns()
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+    import debug_toolbar
+    urlpatterns += [
+        path("__debug__/", include(debug_toolbar.urls)),
+    ]
+# https://www.django-rest-framework.org/#example
+class UserSerializer(serializers.HyperlinkedModelSerializer):
+    class Meta:
+        model = User
+        fields = ['url', 'username', 'email', 'is_staff']
+
+class UserViewSet(viewsets.ModelViewSet):
+    queryset = User.objects.all()
+    serializer_class = UserSerializer
+router = routers.DefaultRouter()
+router.register(r'users', UserViewSet)
+urlpatterns += [
+    path("api/", include(router.urls)),
+    path("api/", include("rest_framework.urls", namespace="rest_framework")),
+    path("api/", include("dj_rest_auth.urls")),
+    # path("api/register/", RegisterView.as_view(), name="register"),
+]
+endef
+
 define BACKEND_URLS
 from django.conf import settings
 from django.urls import include, path
@@ -689,6 +737,52 @@ EOF
 
 #Remove duplicate files upon deployment.
 rm -f /opt/elasticbeanstalk/deployment/*.bak
+endef
+
+define DJANGO_SETTINGS_DEV
+from .base import *
+
+# SECURITY WARNING: don't run with debug turned on in production!
+DEBUG = True
+
+# SECURITY WARNING: keep the secret key used in production secret!
+SECRET_KEY = "django-insecure-#t%ohiokp+8!7#xh4qzoxuyy=-&sxl*!z-&w%y83h87-jm7p9="
+
+# SECURITY WARNING: define the correct hosts in production!
+ALLOWED_HOSTS = ["*"]
+
+EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+
+
+try:
+    from .local import *
+except ImportError:
+    pass
+endef
+
+define DJANGO_MANAGE_PY
+#!/usr/bin/env python
+"""Django's command-line utility for administrative tasks."""
+import os
+import sys
+
+
+def main():
+    """Run administrative tasks."""
+    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "backend.settings.dev")
+    try:
+        from django.core.management import execute_from_command_line
+    except ImportError as exc:
+        raise ImportError(
+            "Couldn't import Django. Are you sure it's installed and "
+            "available on your PYTHONPATH environment variable? Did you "
+            "forget to activate a virtual environment?"
+        ) from exc
+    execute_from_command_line(sys.argv)
+
+
+if __name__ == "__main__":
+    main()
 endef
 
 define DOCKERFILE
@@ -2007,6 +2101,7 @@ export AUTHENTICATION_BACKENDS
 export BABELRC
 export BACKEND_APPS
 export BACKEND_URLS
+export BACKEND_URLS_DJANGO
 export BASE_TEMPLATE
 export BLOCK_CAROUSEL
 export BLOCK_MARKETING
@@ -2020,6 +2115,8 @@ export CONTACT_PAGE_TEST
 export CUSTOM_ADMIN
 export CUSTOM_ENV_EC2_USER
 export CUSTOM_ENV_VAR_FILE
+export DJANGO_MANAGE_PY
+export DJANGO_SETTINGS_DEV
 export DOCKERFILE
 export DOCKERCOMPOSE
 export ESLINTRC
@@ -2171,10 +2268,10 @@ eb-create-default: aws-check-env eb-check-env
 
 eb-custom-env-default:
 	$(ADD_DIR) .ebextensions
-	echo "$$CUSTOM_ENV_EC2_USER" > .ebextensions/bash.config
+	@echo "$$CUSTOM_ENV_EC2_USER" > .ebextensions/bash.config
 	$(GIT_ADD) .ebextensions/bash.config
 	$(ADD_DIR) .platform/hooks/postdeploy
-	echo "$$CUSTOM_ENV_VAR_FILE" > .platform/hooks/postdeploy/setenv.sh
+	@echo "$$CUSTOM_ENV_VAR_FILE" > .platform/hooks/postdeploy/setenv.sh
 	$(GIT_ADD) .platform/hooks/postdeploy/setenv.sh
 
 eb-deploy-default:
@@ -2246,11 +2343,46 @@ db-pg-import-default:
 	@psql $(DATABASE_NAME) < $(DATABASE_NAME).sql
 
 django-custom-admin-default:
-	echo "$$CUSTOM_ADMIN" > backend/admin.py
-	echo "$$BACKEND_APPS" > backend/apps.py
+	@echo "$$CUSTOM_ADMIN" > backend/admin.py
+	@echo "$$BACKEND_APPS" > backend/apps.py
 
 django-init-default: db-init django-install
-	django-admin startproject backend
+	django-admin startproject backend .
+	@$(ADD_DIR) backend/settings
+	@$(COPY_FILE) backend/settings.py backend/settings/base.py
+	@$(DEL_FILE) backend/settings.py
+	@echo "import os" >> backend/settings/base.py
+	@echo "STATICFILES_DIRS = []" >> backend/settings/base.py
+	@echo "$$DJANGO_MANAGE_PY" > manage.py
+	@echo "$$DJANGO_SETTINGS_DEV" > backend/settings/dev.py
+	@$(MAKE) django-url-patterns
+	@$(MAKE) django-init-common
+	export SETTINGS=backend/settings/base.py; \
+		$(MAKE) django-siteuser
+	@$(MAKE) django-migrations
+	@$(MAKE) django-migrate
+	@$(MAKE) su
+	@$(MAKE) django-frontend-app
+	@$(MAKE) npm-install
+	@$(MAKE) django-npm-install-save
+	@$(MAKE) django-npm-install-save-dev
+	@$(MAKE) pip-init-test
+	@$(MAKE) readme
+	@$(MAKE) gitignore
+	@$(MAKE) freeze
+	@$(MAKE) serve
+
+django-init-common-default:
+	@echo "$$DOCKERFILE" > Dockerfile
+	@echo "$$DOCKERCOMPOSE" > docker-compose.yml
+	export SETTINGS=backend/settings/base.py DEV_SETTINGS=backend/settings/dev.py; \
+		$(MAKE) django-settings
+	$(MAKE) django-custom-admin
+	$(GIT_ADD) backend
+	$(GIT_ADD) requirements.txt
+	$(GIT_ADD) manage.py
+	$(GIT_ADD) Dockerfile
+	$(GIT_ADD) .dockerignore
 
 django-install-default:
 	$(ENSURE_PIP)
@@ -2375,49 +2507,41 @@ django-serve-default:
 	python manage.py runserver 0.0.0.0:8000
 
 django-settings-default:
-	echo "# $(PROJECT_NAME)" >> $(SETTINGS)
-	echo "ALLOWED_HOSTS = ['*']" >> $(SETTINGS)
-	echo "import dj_database_url  # noqa" >> $(SETTINGS)
-	echo "DATABASE_URL = os.environ.get('DATABASE_URL', \
+	@echo "# $(PROJECT_NAME)" >> $(SETTINGS)
+	@echo "ALLOWED_HOSTS = ['*']" >> $(SETTINGS)
+	@echo "import dj_database_url  # noqa" >> $(SETTINGS)
+	@echo "DATABASE_URL = os.environ.get('DATABASE_URL', \
          'postgres://$(DB_USER):$(DB_PASS)@$(DB_HOST):$(DB_PORT)/$(PROJECT_NAME)')" >> $(SETTINGS)
-	echo "DATABASES['default'] = dj_database_url.parse(DATABASE_URL)" >> $(SETTINGS)
-	echo "INSTALLED_APPS.append('webpack_boilerplate')" >> $(SETTINGS)
-	echo "INSTALLED_APPS.append('rest_framework')" >> $(SETTINGS)
-	echo "INSTALLED_APPS.append('rest_framework.authtoken')" >> $(SETTINGS)
-	echo "INSTALLED_APPS.append('allauth')" >> $(SETTINGS)
-	echo "INSTALLED_APPS.append('allauth.account')" >> $(SETTINGS)
-	echo "INSTALLED_APPS.append('allauth.socialaccount')" >> $(SETTINGS)
-	echo "INSTALLED_APPS.append('wagtailmenus')" >> $(SETTINGS)
-	echo "INSTALLED_APPS.append('wagtailmarkdown')" >> $(SETTINGS)
-	echo "INSTALLED_APPS.append('wagtail_modeladmin')" >> $(SETTINGS)
-	echo "INSTALLED_APPS.append('wagtailseo')" >> $(SETTINGS)
-	echo "INSTALLED_APPS.append('wagtail_color_panel')" >> $(SETTINGS)
-	echo "INSTALLED_APPS.append('wagtail.contrib.settings')" >> $(SETTINGS)
-	echo "INSTALLED_APPS.append('django_extensions')" >> $(SETTINGS)
-	echo "INSTALLED_APPS.append('debug_toolbar')" >> $(DEV_SETTINGS)
-	echo "INSTALLED_APPS.append('crispy_forms')" >> $(SETTINGS)
-	echo "INSTALLED_APPS.append('crispy_bootstrap5')" >> $(SETTINGS)
-	echo "INSTALLED_APPS.append('django_recaptcha')" >> $(SETTINGS)
-	echo "INSTALLED_APPS.append('explorer')" >> $(DEV_SETTINGS)
-	echo "INSTALLED_APPS.append('django.contrib.admindocs')" >> $(DEV_SETTINGS)
-	echo "# INSTALLED_APPS = [app for app in INSTALLED_APPS if app != 'django.contrib.admin']" >> $(SETTINGS)
-	echo "# INSTALLED_APPS.append('backend.apps.CustomAdminConfig')" >> $(SETTINGS)
-	echo "MIDDLEWARE.append('allauth.account.middleware.AccountMiddleware')" >> $(SETTINGS)
-	echo "MIDDLEWARE.append('debug_toolbar.middleware.DebugToolbarMiddleware')" >> $(DEV_SETTINGS)
-	echo "MIDDLEWARE.append('hijack.middleware.HijackUserMiddleware')" >> $(DEV_SETTINGS)
-	echo "STATICFILES_DIRS.append(os.path.join(BASE_DIR, 'frontend/build'))" >> $(SETTINGS)
-	echo "WEBPACK_LOADER = { 'MANIFEST_FILE': os.path.join(BASE_DIR, 'frontend/build/manifest.json'), }" >> $(SETTINGS)
-	echo "$$REST_FRAMEWORK" >> $(SETTINGS)
-	echo "$$SETTINGS_THEMES" >> $(SETTINGS)
-	echo "$$INTERNAL_IPS" >> $(DEV_SETTINGS)
-	echo "LOGIN_REDIRECT_URL = '/'" >> $(SETTINGS)
-	echo "DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'" >> $(SETTINGS)
-	echo "$$AUTHENTICATION_BACKENDS" >> $(SETTINGS)
-	echo "TEMPLATES[0]['OPTIONS']['context_processors'].append('wagtail.contrib.settings.context_processors.settings')" >> $(SETTINGS)
-	echo "TEMPLATES[0]['OPTIONS']['context_processors'].append('wagtailmenus.context_processors.wagtailmenus')">> $(SETTINGS)
-	echo "SILENCED_SYSTEM_CHECKS = ['django_recaptcha.recaptcha_test_key_error']" >> $(SETTINGS)
-	echo "EXPLORER_CONNECTIONS = { 'Default': 'default' }" >> $(SETTINGS)
-	echo "EXPLORER_DEFAULT_CONNECTION = 'default'" >> $(SETTINGS)
+	@echo "DATABASES['default'] = dj_database_url.parse(DATABASE_URL)" >> $(SETTINGS)
+	@echo "INSTALLED_APPS.append('webpack_boilerplate')" >> $(SETTINGS)
+	@echo "INSTALLED_APPS.append('rest_framework')" >> $(SETTINGS)
+	@echo "INSTALLED_APPS.append('rest_framework.authtoken')" >> $(SETTINGS)
+	@echo "INSTALLED_APPS.append('allauth')" >> $(SETTINGS)
+	@echo "INSTALLED_APPS.append('allauth.account')" >> $(SETTINGS)
+	@echo "INSTALLED_APPS.append('allauth.socialaccount')" >> $(SETTINGS)
+	@echo "INSTALLED_APPS.append('django_extensions')" >> $(SETTINGS)
+	@echo "INSTALLED_APPS.append('debug_toolbar')" >> $(DEV_SETTINGS)
+	@echo "INSTALLED_APPS.append('crispy_forms')" >> $(SETTINGS)
+	@echo "INSTALLED_APPS.append('crispy_bootstrap5')" >> $(SETTINGS)
+	@echo "INSTALLED_APPS.append('django_recaptcha')" >> $(SETTINGS)
+	@echo "INSTALLED_APPS.append('explorer')" >> $(DEV_SETTINGS)
+	@echo "INSTALLED_APPS.append('django.contrib.admindocs')" >> $(DEV_SETTINGS)
+	@echo "# INSTALLED_APPS = [app for app in INSTALLED_APPS if app != 'django.contrib.admin']" >> $(SETTINGS)
+	@echo "# INSTALLED_APPS.append('backend.apps.CustomAdminConfig')" >> $(SETTINGS)
+	@echo "MIDDLEWARE.append('allauth.account.middleware.AccountMiddleware')" >> $(SETTINGS)
+	@echo "MIDDLEWARE.append('debug_toolbar.middleware.DebugToolbarMiddleware')" >> $(DEV_SETTINGS)
+	@echo "MIDDLEWARE.append('hijack.middleware.HijackUserMiddleware')" >> $(DEV_SETTINGS)
+	@echo "STATICFILES_DIRS.append(os.path.join(BASE_DIR, 'frontend/build'))" >> $(SETTINGS)
+	@echo "WEBPACK_LOADER = { 'MANIFEST_FILE': os.path.join(BASE_DIR, 'frontend/build/manifest.json'), }" >> $(SETTINGS)
+	@echo "$$REST_FRAMEWORK" >> $(SETTINGS)
+	@echo "$$SETTINGS_THEMES" >> $(SETTINGS)
+	@echo "$$INTERNAL_IPS" >> $(DEV_SETTINGS)
+	@echo "LOGIN_REDIRECT_URL = '/'" >> $(SETTINGS)
+	@echo "DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'" >> $(SETTINGS)
+	@echo "$$AUTHENTICATION_BACKENDS" >> $(SETTINGS)
+	@echo "SILENCED_SYSTEM_CHECKS = ['django_recaptcha.recaptcha_test_key_error']" >> $(SETTINGS)
+	@echo "EXPLORER_CONNECTIONS = { 'Default': 'default' }" >> $(SETTINGS)
+	@echo "EXPLORER_DEFAULT_CONNECTION = 'default'" >> $(SETTINGS)
 
 django-crispy-default:
 	@echo "CRISPY_TEMPLATE_PACK = 'bootstrap5'" >> $(SETTINGS)
@@ -2441,10 +2565,7 @@ django-user-default:
         User.objects.create_user('user', '', 'user')"
 
 django-url-patterns-default:
-	echo "$$BACKEND_URLS" > backend/$(URLS)
-
-django-npm-install-default:
-	npm install
+	@echo "$$BACKEND_URLS_DJANGO" > backend/urls.py
 
 django-npm-install-save-default:
 	npm install \
@@ -2515,7 +2636,7 @@ gh-default:
 	gh browse
 
 git-ignore-default:
-	echo "$$GIT_IGNORE" > .gitignore
+	@echo "$$GIT_IGNORE" > .gitignore
 	$(GIT_ADD) .gitignore
 
 git-branches-default:
@@ -2752,6 +2873,16 @@ wagtail-search-urls:
 	@echo "$$SEARCH_URLS" > search/urls.py
 	$(GIT_ADD) search
 
+wagtail-settings-default:
+	@echo "INSTALLED_APPS.append('wagtailmenus')" >> $(SETTINGS)
+	@echo "INSTALLED_APPS.append('wagtailmarkdown')" >> $(SETTINGS)
+	@echo "INSTALLED_APPS.append('wagtail_modeladmin')" >> $(SETTINGS)
+	@echo "INSTALLED_APPS.append('wagtailseo')" >> $(SETTINGS)
+	@echo "INSTALLED_APPS.append('wagtail_color_panel')" >> $(SETTINGS)
+	@echo "INSTALLED_APPS.append('wagtail.contrib.settings')" >> $(SETTINGS)
+	@echo "TEMPLATES[0]['OPTIONS']['context_processors'].append('wagtail.contrib.settings.context_processors.settings')" >> $(SETTINGS)
+	@echo "TEMPLATES[0]['OPTIONS']['context_processors'].append('wagtailmenus.context_processors.wagtailmenus')">> $(SETTINGS)
+
 wagtail-search-template:
 	@echo "$$SEARCH_TEMPLATE" > search/templates/search/search.html
 
@@ -2799,28 +2930,22 @@ wagtail-backend-templates-default:
 wagtail-start-default:
 	wagtail start backend .
 
-wagtail-init-default: db-init wagtail-install wagtail-start
-	@echo "$$DOCKERFILE" > Dockerfile
-	@echo "$$DOCKERCOMPOSE" > docker-compose.yml
-	export SETTINGS=backend/settings/base.py DEV_SETTINGS=backend/settings/dev.py; \
-		$(MAKE) django-settings
+wagtail-url-patterns-default:
+	@echo "$$BACKEND_URLS" > backend/urls.py
+
+wagtail-init-default: db-init wagtail-install wagtail-start django-init-common
+	export SETTINGS=backend/settings/base.py; \
+        $(MAKE) wagtail-settings
 	export SETTINGS=backend/settings/base.py; \
 		$(MAKE) django-model-form-demo
 	export SETTINGS=backend/settings/base.py; \
 		$(MAKE) django-logging-demo
 	export SETTINGS=backend/settings/base.py; \
 		$(MAKE) django-payment
-	export URLS=urls.py; \
-		$(MAKE) django-url-patterns
-	$(MAKE) django-custom-admin
-	$(GIT_ADD) backend
-	$(GIT_ADD) requirements.txt
-	$(GIT_ADD) manage.py
-	$(GIT_ADD) Dockerfile
-	$(GIT_ADD) .dockerignore
-	$(MAKE) wagtail-homepage
-	$(MAKE) wagtail-search-template
-	$(MAKE) wagtail-search-urls
+	@$(MAKE) wagtail-url-patterns
+	@$(MAKE) wagtail-homepage
+	@$(MAKE) wagtail-search-template
+	@$(MAKE) wagtail-search-urls
 	export SETTINGS=backend/settings/base.py; \
 		$(MAKE) django-siteuser
 	export SETTINGS=backend/settings/base.py; \
@@ -2831,12 +2956,12 @@ wagtail-init-default: db-init wagtail-install wagtail-start
 		$(MAKE) wagtail-sitepage
 	export SETTINGS=backend/settings/base.py; \
 		$(MAKE) django-crispy
-	$(MAKE) django-migrations
-	$(MAKE) django-migrate
-	$(MAKE) su
-	$(MAKE) wagtail-backend-templates
+	@$(MAKE) wagtail-backend-templates
+	@$(MAKE) django-migrations
+	@$(MAKE) django-migrate
+	@$(MAKE) su
 	@$(MAKE) django-frontend-app
-	@$(MAKE) django-npm-install
+	@$(MAKE) npm-install
 	@$(MAKE) django-npm-install-save
 	@$(MAKE) django-npm-install-save-dev
 	@$(MAKE) pip-init-test
