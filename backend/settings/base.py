@@ -176,3 +176,5 @@ TEMPLATES[0]['DIRS'].append(os.path.join(PROJECT_DIR, 'templates'))
 INSTALLED_APPS.append('siteuser')
 INSTALLED_APPS.append('django_mongodb')
 AUTH_USER_MODEL = 'siteuser.User'
+DEFAULT_AUTO_FIELD = "django_mongodb.fields.MongoAutoField"
+DEFAULT_AUTO_FIELD = "django_mongodb.fields.MongoAutoField"
