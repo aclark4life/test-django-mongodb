@@ -19,7 +19,7 @@ PROJECT_MAKEFILE := project.mk
 PROJECT_NAME = project-makefile
 PROJECT_DIRS = backend contactpage home privacy siteuser
 
-WAGTAIL_CLEAN_DIRS = home search backend sitepage siteuser privacy frontend contactpage model_form_demo logging_demo payment
+WAGTAIL_CLEAN_DIRS = home search backend sitepage siteuser privacy frontend contactpage model_form_demo logging_demo payment node_modules
 WAGTAIL_CLEAN_FILES = README.rst .dockerignore Dockerfile manage.py requirements.txt requirements-test.txt docker-compose.yml
 
 REVIEW_EDITOR = subl
@@ -119,7 +119,7 @@ class CustomAdminConfig(AdminConfig):
     default_site = "backend.admin.CustomAdminSite"
 endef
 
-define BACKEND_URLS_DJANGO
+define DJANGO_URLS
 from django.conf import settings
 from django.urls import include, path
 from django.contrib import admin
@@ -136,7 +136,9 @@ urlpatterns += [
     path('django/', admin.site.urls),
     path('user/', include('siteuser.urls')),
     path('explorer/', include('explorer.urls')),
-    path("hijack/", include("hijack.urls")),
+    path('hijack/', include('hijack.urls')),
+    path('search/', include('search.urls')),
+    path('', include('home.urls')),
 ]
 if settings.DEBUG:
     from django.conf.urls.static import static
@@ -167,7 +169,7 @@ urlpatterns += [
 ]
 endef
 
-define BACKEND_URLS
+define WAGTAIL_URLS
 from django.conf import settings
 from django.urls import include, path
 from django.contrib import admin
@@ -250,98 +252,6 @@ urlpatterns += [
 ]
 endef
 
-
-define BASE_TEMPLATE
-{% load static wagtailcore_tags wagtailuserbar webpack_loader %}
-
-<!DOCTYPE html>
-<html lang="en" class="h-100" data-bs-theme="{{ request.user.user_theme_preference|default:'light' }}">
-    <head>
-        <meta charset="utf-8" />
-        <title>
-            {% block title %}
-            {% if page.seo_title %}{{ page.seo_title }}{% else %}{{ page.title }}{% endif %}
-            {% endblock %}
-            {% block title_suffix %}
-            {% wagtail_site as current_site %}
-            {% if current_site and current_site.site_name %}- {{ current_site.site_name }}{% endif %}
-            {% endblock %}
-        </title>
-        {% if page.search_description %}
-        <meta name="description" content="{{ page.search_description }}" />
-        {% endif %}
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-
-        {# Force all links in the live preview panel to be opened in a new tab #}
-        {% if request.in_preview_panel %}
-        <base target="_blank">
-        {% endif %}
-
-        {% stylesheet_pack 'app' %}
-
-        {% block extra_css %}
-        {# Override this in templates to add extra stylesheets #}
-        {% endblock %}
-
-        <style>
-          .success {
-              background-color: #d4edda;
-              border-color: #c3e6cb;
-              color: #155724;
-          }
-          .info {
-              background-color: #d1ecf1;
-              border-color: #bee5eb;
-              color: #0c5460;
-          }
-          .warning {
-              background-color: #fff3cd;
-              border-color: #ffeeba;
-              color: #856404;
-          }
-          .danger {
-              background-color: #f8d7da;
-              border-color: #f5c6cb;
-              color: #721c24;
-          }
-        </style>
-        {% include 'favicon.html' %}
-        {% csrf_token %}
-    </head>
-    <body class="{% block body_class %}{% endblock %} d-flex flex-column h-100">
-        <main class="flex-shrink-0">
-            {% wagtailuserbar %}
-            <div id="app"></div>
-            {% include 'header.html' %}
-            {% if messages %}
-                <div class="messages container">
-                    {% for message in messages %}
-                        <div class="alert {{ message.tags }} alert-dismissible fade show"
-                             role="alert">
-                            {{ message }}
-                            <button type="button"
-                                    class="btn-close"
-                                    data-bs-dismiss="alert"
-                                    aria-label="Close"></button>
-                        </div>
-                    {% endfor %}
-                </div>
-            {% endif %}
-            <div class="container">
-                {% block content %}{% endblock %}
-            </div>
-        </main>
-        {% include 'footer.html' %}
-        {% include 'offcanvas.html' %}
-        {% javascript_pack 'app' %}
-        {% block extra_js %}
-        {# Override this in templates to add extra javascript #}
-        {% endblock %}
-    </body>
-</html>
-endef
-
-
 define BLOCK_CAROUSEL
         <div id="carouselExampleCaptions" class="carousel slide">
             <div class="carousel-indicators">
@@ -390,38 +300,6 @@ define BLOCK_MARKETING
         {{ self.content }}
     {% endif %}
 </div>
-endef
-
-define CONTACT_PAGE_TEST
-from wagtail.models import Page, Site
-from wagtail.rich_text import RichText
-from wagtail.test.utils import WagtailPageTestCase
-
-from home.models import HomePage
-from contactpage.models import ContactPage 
-
-
-class ContactPageTest(WagtailPageTestCase):
-    @classmethod
-    def setUpTestData(cls):
-        root = Page.get_first_root_node()
-        Site.objects.create(
-            hostname="testserver",
-            root_page=root,
-            is_default_site=True,
-            site_name="testserver",
-        )
-        home = HomePage(title="Home")
-        root.add_child(instance=home)
-        cls.page = ContactPage(
-            title="Contact Us",
-            slug="contact-us",
-        )
-        home.add_child(instance=cls.page)
-
-    def test_get(self):
-        response = self.client.get(self.page.url)
-        self.assertEqual(response.status_code, 200)
 endef
 
 define COMPONENT_CLOCK
@@ -739,6 +617,250 @@ EOF
 rm -f /opt/elasticbeanstalk/deployment/*.bak
 endef
 
+define DJANGO_HOME_PAGE_VIEWS
+from django.views.generic import TemplateView
+
+class HomeView(TemplateView):
+    template_name = "home.html"
+endef
+
+define DJANGO_HOME_PAGE_URLS
+from django.urls import path
+from .views import HomeView
+
+urlpatterns = [
+    path("", HomeView.as_view(), name="home")
+]
+endef
+
+define DJANGO_HOME_PAGE_TEMPLATE
+{% extends "base.html" %}
+{% block content %}
+    <main class="{% block main_class %}{% endblock %}">
+    </main>
+{% endblock %}
+endef
+
+define DJANGO_HTML_OFFCANVAS
+<div class="offcanvas offcanvas-start bg-dark" tabindex="-1" id="offcanvasExample" aria-labelledby="offcanvasExampleLabel">
+  <div class="offcanvas-header">
+    <a class="offcanvas-title text-light h5 text-decoration-none" id="offcanvasExampleLabel" href="/">{{ current_site.site_name|default:"Project Makefile" }}</a>
+    <button type="button" class="btn-close bg-light" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+  </div>
+  <div class="offcanvas-body bg-dark">
+    <ul class="navbar-nav justify-content-end flex-grow-1 pe-3">
+      <li class="nav-item">
+        <a class="nav-link text-light active" aria-current="page" href="/">Home</a>
+      </li>
+      {% for child in current_site.root_page.get_children %}
+      <li class="nav-item">
+        <a class="nav-link text-light" href="{{ child.url }}">{{ child }}</a>
+      </li>
+      {% endfor %}
+      <li class="nav-item" id="{% if request.user.is_authenticated %}theme-toggler-authenticated{% else %}theme-toggler-anonymous{% endif %}">
+          <span class="nav-link text-light" data-bs-toggle="tooltip" title="Toggle dark mode">
+              <i class="fas fa-circle-half-stroke"></i>
+          </span>
+      </li>
+      <div data-component="UserMenu" data-text-color="light" data-is-authenticated="{{ request.user.is_authenticated }}" data-is-superuser="{{ request.user.is_superuser }}"></div>
+    </ul>
+  </div>
+</div>
+endef
+
+define DJANGO_BASE_TEMPLATE
+{% load static webpack_loader %}
+
+<!DOCTYPE html>
+<html lang="en" class="h-100" data-bs-theme="{{ request.user.user_theme_preference|default:'light' }}">
+    <head>
+        <meta charset="utf-8" />
+        <title>
+            {% block title %}
+            {% endblock %}
+            {% block title_suffix %}
+            {% endblock %}
+        </title>
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+        {% stylesheet_pack 'app' %}
+
+        {% block extra_css %}
+        {# Override this in templates to add extra stylesheets #}
+        {% endblock %}
+
+        <style>
+          .success {
+              background-color: #d4edda;
+              border-color: #c3e6cb;
+              color: #155724;
+          }
+          .info {
+              background-color: #d1ecf1;
+              border-color: #bee5eb;
+              color: #0c5460;
+          }
+          .warning {
+              background-color: #fff3cd;
+              border-color: #ffeeba;
+              color: #856404;
+          }
+          .danger {
+              background-color: #f8d7da;
+              border-color: #f5c6cb;
+              color: #721c24;
+          }
+        </style>
+        {% include 'favicon.html' %}
+        {% csrf_token %}
+    </head>
+    <body class="{% block body_class %}{% endblock %} d-flex flex-column h-100">
+        <main class="flex-shrink-0">
+            <div id="app"></div>
+            {% include 'header.html' %}
+            {% if messages %}
+                <div class="messages container">
+                    {% for message in messages %}
+                        <div class="alert {{ message.tags }} alert-dismissible fade show"
+                             role="alert">
+                            {{ message }}
+                            <button type="button"
+                                    class="btn-close"
+                                    data-bs-dismiss="alert"
+                                    aria-label="Close"></button>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+            <div class="container">
+                {% block content %}{% endblock %}
+            </div>
+        </main>
+        {% include 'footer.html' %}
+        {% include 'offcanvas.html' %}
+        {% javascript_pack 'app' %}
+        {% block extra_js %}
+        {# Override this in templates to add extra javascript #}
+        {% endblock %}
+    </body>
+</html>
+endef
+
+define DJANGO_SEARCH_FORMS
+from django import forms
+
+class SearchForm(forms.Form):
+    query = forms.CharField(max_length=100, required=True, label='Search')
+
+endef
+
+define DJANGO_SEARCH_UTILS
+from django.apps import apps
+from django.conf import settings
+
+def get_search_models():
+    models = []
+    for model_path in settings.SEARCH_MODELS:
+        app_label, model_name = model_path.split('.')
+        model = apps.get_model(app_label, model_name)
+        models.append(model)
+    return models
+endef
+
+define DJANGO_SEARCH_URLS
+from django.urls import path
+from .views import SearchView
+
+urlpatterns = [
+    path('search/', SearchView.as_view(), name='search'),
+]
+endef
+
+define DJANGO_SEARCH_VIEWS
+from django.views.generic import ListView
+from django.db.models import Q
+from .forms import SearchForm
+from .utils import get_search_models
+
+class SearchView(ListView):
+    template_name = 'your_app/search_results.html'
+    context_object_name = 'results'
+    paginate_by = 10
+
+    def get_queryset(self):
+        form = SearchForm(self.request.GET)
+        query = None
+        results = []
+
+        if form.is_valid():
+            query = form.cleaned_data['query']
+            search_models = get_search_models()
+
+            for model in search_models:
+                fields = [f.name for f in model._meta.fields if isinstance(f, (models.CharField, models.TextField))]
+                queries = [Q(**{f"{field}__icontains": query}) for field in fields]
+                model_results = model.objects.filter(queries.pop())
+
+                for item in queries:
+                    model_results = model_results.filter(item)
+
+                results.extend(model_results)
+
+        return results
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['form'] = SearchForm(self.request.GET)
+        context['query'] = self.request.GET.get('query', '')
+        return context
+endef
+
+define DJANGO_SEARCH_SETTINGS
+SEARCH_MODELS = [
+    # 'app_name.Article',
+    # 'app_name.BlogPost',
+    # 'app_name.Comment',
+    # Add other models as needed
+]
+endef
+
+define DJANGO_SEARCH_TEMPLATE
+{% extends "base.html" %}
+{% block body_class %}template-searchresults{% endblock %}
+{% block title %}Search{% endblock %}
+{% block content %}
+    <h1>Search</h1>
+    <form action="{% url 'search' %}" method="get">
+        <input type="text"
+               name="query"
+               {% if search_query %}value="{{ search_query }}"{% endif %}>
+        <input type="submit" value="Search" class="button">
+    </form>
+    {% if search_results %}
+        <ul>
+            {% for result in search_results %}
+                <li>
+                    <h4>
+                        <a href="{% pageurl result %}">{{ result }}</a>
+                    </h4>
+                    {% if result.search_description %}{{ result.search_description }}{% endif %}
+                </li>
+            {% endfor %}
+        </ul>
+        {% if search_results.has_previous %}
+            <a href="{% url 'search' %}?query={{ search_query|urlencode }}&amp;page={{ search_results.previous_page_number }}">Previous</a>
+        {% endif %}
+        {% if search_results.has_next %}
+            <a href="{% url 'search' %}?query={{ search_query|urlencode }}&amp;page={{ search_results.next_page_number }}">Next</a>
+        {% endif %}
+    {% elif search_query %}
+        No results found
+	{% else %}
+		No results found. Try a <a href="?query=test">test query</a>?
+    {% endif %}
+{% endblock %}
+endef
+
 define DJANGO_SETTINGS_DEV
 from .base import *
 
@@ -834,11 +956,6 @@ volumes:
   postgres_data:
 endef
 
-define INTERNAL_IPS
-INTERNAL_IPS = ["127.0.0.1",]
-endef
-
-
 define ESLINTRC
 {
     "env": {
@@ -884,161 +1001,6 @@ endef
 define FAVICON_TEMPLATE
 {% load static %}
 <link href="{% static 'wagtailadmin/images/favicon.ico' %}" rel="icon">
-endef
-
-
-define HOME_PAGE_MODEL
-from django.db import models
-from wagtail.models import Page
-from wagtail.fields import RichTextField, StreamField
-from wagtail import blocks
-from wagtail.admin.panels import FieldPanel
-from wagtail.images.blocks import ImageChooserBlock
-from wagtail_color_panel.fields import ColorField
-from wagtail_color_panel.edit_handlers import NativeColorPanel
-
-
-class MarketingBlock(blocks.StructBlock):
-    title = blocks.CharBlock(required=False, help_text='Enter the block title')
-    content = blocks.RichTextBlock(required=False, help_text='Enter the block content')
-    images = blocks.ListBlock(ImageChooserBlock(required=False), help_text="Select one or two images for column display. Select three or more images for carousel display.")
-    image = ImageChooserBlock(required=False, help_text="Select one image for background display.")
-    block_class = blocks.CharBlock(
-        required=False,
-        help_text='Enter a CSS class for styling the marketing block',
-        classname='full title',
-        default='vh-100 bg-secondary',
-    )
-    image_class = blocks.CharBlock(
-        required=False,
-        help_text='Enter a CSS class for styling the column display image(s)',
-        classname='full title',
-        default='img-thumbnail p-5',
-    )
-    layout_class = blocks.CharBlock(
-        required=False,
-        help_text='Enter a CSS class for styling the layout.',
-        classname='full title',
-        default='d-flex flex-row',
-    )
-
-    class Meta:
-        icon = 'placeholder'
-        template = 'blocks/marketing_block.html'
-
-
-class HomePage(Page):
-    template = 'home/home_page.html'  # Create a template for rendering the home page
-    marketing_blocks = StreamField([
-        ('marketing_block', MarketingBlock()),
-    ], blank=True, null=True, use_json_field=True)
-    content_panels = Page.content_panels + [
-        FieldPanel('marketing_blocks'),
-    ]
-
-    class Meta:
-        verbose_name = 'Home Page'
-endef
-
-define HOME_PAGE_TEMPLATE
-{% extends "base.html" %}
-{% load wagtailcore_tags %}
-{% block content %}
-    <main class="{% block main_class %}{% endblock %}">
-        {% for block in page.marketing_blocks %}
-           {% include_block block %}
-        {% endfor %}
-    </main>
-{% endblock %}
-endef
-
-define HTML_INDEX
-<h1>Hello world</h1>
-endef
-
-define HTML_ERROR
-<h1>500</h1>
-endef
-
-define JENKINS_FILE
-pipeline {
-    agent any
-    stages {
-        stage('') {
-            steps {
-                echo ''
-            }
-        }
-    }
-}
-endef
-
-define SITEPAGE_MODEL
-from wagtail.models import Page
-
-
-class SitePage(Page):
-    template = "sitepage/site_page.html"
-
-    class Meta:
-        verbose_name = "Site Page"
-endef
-
-define SEARCH_TEMPLATE
-{% extends "base.html" %}
-{% load static wagtailcore_tags %}
-{% block body_class %}template-searchresults{% endblock %}
-{% block title %}Search{% endblock %}
-{% block content %}
-    <h1>Search</h1>
-    <form action="{% url 'search' %}" method="get">
-        <input type="text"
-               name="query"
-               {% if search_query %}value="{{ search_query }}"{% endif %}>
-        <input type="submit" value="Search" class="button">
-    </form>
-    {% if search_results %}
-        <ul>
-            {% for result in search_results %}
-                <li>
-                    <h4>
-                        <a href="{% pageurl result %}">{{ result }}</a>
-                    </h4>
-                    {% if result.search_description %}{{ result.search_description }}{% endif %}
-                </li>
-            {% endfor %}
-        </ul>
-        {% if search_results.has_previous %}
-            <a href="{% url 'search' %}?query={{ search_query|urlencode }}&amp;page={{ search_results.previous_page_number }}">Previous</a>
-        {% endif %}
-        {% if search_results.has_next %}
-            <a href="{% url 'search' %}?query={{ search_query|urlencode }}&amp;page={{ search_results.next_page_number }}">Next</a>
-        {% endif %}
-    {% elif search_query %}
-        No results found
-	{% else %}
-		No results found. Try a <a href="?query=test">test query</a>?
-    {% endif %}
-{% endblock %}
-endef
-
-define SEARCH_URLS
-from django.urls import path
-from .views import search
-
-urlpatterns = [
-    path("", search, name="search")
-]
-endef
-
-define REST_FRAMEWORK
-REST_FRAMEWORK = {
-    # Use Django's standard `django.contrib.auth` permissions,
-    # or allow read-only access for unauthenticated users.
-    'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.DjangoModelPermissionsOrAnonReadOnly'
-    ]
-}
 endef
 
 define FRONTEND_APP_CONFIG
@@ -1234,10 +1196,16 @@ _build/
 .elasticbeanstalk/
 endef
 
+define HTML_INDEX
+<h1>Hello world</h1>
+endef
+
+define HTML_ERROR
+<h1>500</h1>
+endef
+
 define HTML_FOOTER
-{% load wagtailcore_tags %}
   <footer class="footer mt-auto py-3 bg-body-tertiary pt-5 text-center text-small">
-    {% wagtail_site as current_site %}
     <p class="mb-1">&copy; {% now "Y" %} {{ current_site.site_name|default:"Project Makefile" }}</p>
     <ul class="list-inline">
       <li class="list-inline-item"><a class="text-secondary text-decoration-none {% if request.path == '/' %}active{% endif %}" href="/">Home</a></li>
@@ -1248,10 +1216,7 @@ define HTML_FOOTER
   </footer>
 endef
 
-
 define HTML_HEADER
-{% load wagtailcore_tags %}
-{% wagtail_site as current_site %}
 <div class="app-header">
     <div class="container py-4 app-navbar">
         <nav class="navbar navbar-transparent navbar-padded navbar-expand-md">
@@ -1311,34 +1276,21 @@ define HTML_HEADER
 </div>
 endef 
 
-define HTML_OFFCANVAS
-{% load wagtailcore_tags %}
-{% wagtail_site as current_site %}
-<div class="offcanvas offcanvas-start bg-dark" tabindex="-1" id="offcanvasExample" aria-labelledby="offcanvasExampleLabel">
-  <div class="offcanvas-header">
-    <a class="offcanvas-title text-light h5 text-decoration-none" id="offcanvasExampleLabel" href="/">{{ current_site.site_name|default:"Project Makefile" }}</a>
-    <button type="button" class="btn-close bg-light" data-bs-dismiss="offcanvas" aria-label="Close"></button>
-  </div>
-  <div class="offcanvas-body bg-dark">
-    {% wagtail_site as current_site %}
-    <ul class="navbar-nav justify-content-end flex-grow-1 pe-3">
-      <li class="nav-item">
-        <a class="nav-link text-light active" aria-current="page" href="/">Home</a>
-      </li>
-      {% for child in current_site.root_page.get_children %}
-      <li class="nav-item">
-        <a class="nav-link text-light" href="{{ child.url }}">{{ child }}</a>
-      </li>
-      {% endfor %}
-      <li class="nav-item" id="{% if request.user.is_authenticated %}theme-toggler-authenticated{% else %}theme-toggler-anonymous{% endif %}">
-          <span class="nav-link text-light" data-bs-toggle="tooltip" title="Toggle dark mode">
-              <i class="fas fa-circle-half-stroke"></i>
-          </span>
-      </li>
-      <div data-component="UserMenu" data-text-color="light" data-is-authenticated="{{ request.user.is_authenticated }}" data-is-superuser="{{ request.user.is_superuser }}"></div>
-    </ul>
-  </div>
-</div>
+define INTERNAL_IPS
+INTERNAL_IPS = ["127.0.0.1",]
+endef
+
+define JENKINS_FILE
+pipeline {
+    agent any
+    stages {
+        stage('') {
+            steps {
+                echo ''
+            }
+        }
+    }
+}
 endef
 
 define LOGGING_DEMO_VIEWS
@@ -1758,6 +1710,117 @@ flake8
 tox
 endef
 
+define REST_FRAMEWORK
+REST_FRAMEWORK = {
+    # Use Django's standard `django.contrib.auth` permissions,
+    # or allow read-only access for unauthenticated users.
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.DjangoModelPermissionsOrAnonReadOnly'
+    ]
+}
+endef
+
+define SEPARATOR
+.==========================================================================================================================================.
+|                                                                                                                                          |  
+| _|_|_|                        _|                        _|          _|      _|            _|                      _|_|  _|  _|           | 
+| _|    _|  _|  _|_|    _|_|          _|_|      _|_|_|  _|_|_|_|      _|_|  _|_|    _|_|_|  _|  _|      _|_|      _|          _|    _|_|   |
+| _|_|_|    _|_|      _|    _|  _|  _|_|_|_|  _|          _|          _|  _|  _|  _|    _|  _|_|      _|_|_|_|  _|_|_|_|  _|  _|  _|_|_|_| |
+| _|        _|        _|    _|  _|  _|        _|          _|          _|      _|  _|    _|  _|  _|    _|          _|      _|  _|  _|       |
+| _|        _|          _|_|    _|    _|_|_|    _|_|_|      _|_|      _|      _|    _|_|_|  _|    _|    _|_|_|    _|      _|  _|    _|_|_| |
+|                               _|                                                                                                         |
+|                             _|                                                                                                           |
+`=========================================================================================================================================='
+endef
+
+define SITEPAGE_MODEL
+from wagtail.models import Page
+
+
+class SitePage(Page):
+    template = "sitepage/site_page.html"
+
+    class Meta:
+        verbose_name = "Site Page"
+endef
+
+define WAGTAIL_HTML_OFFCANVAS
+{% load wagtailcore_tags %}
+{% wagtail_site as current_site %}
+<div class="offcanvas offcanvas-start bg-dark" tabindex="-1" id="offcanvasExample" aria-labelledby="offcanvasExampleLabel">
+  <div class="offcanvas-header">
+    <a class="offcanvas-title text-light h5 text-decoration-none" id="offcanvasExampleLabel" href="/">{{ current_site.site_name|default:"Project Makefile" }}</a>
+    <button type="button" class="btn-close bg-light" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+  </div>
+  <div class="offcanvas-body bg-dark">
+    {% wagtail_site as current_site %}
+    <ul class="navbar-nav justify-content-end flex-grow-1 pe-3">
+      <li class="nav-item">
+        <a class="nav-link text-light active" aria-current="page" href="/">Home</a>
+      </li>
+      {% for child in current_site.root_page.get_children %}
+      <li class="nav-item">
+        <a class="nav-link text-light" href="{{ child.url }}">{{ child }}</a>
+      </li>
+      {% endfor %}
+      <li class="nav-item" id="{% if request.user.is_authenticated %}theme-toggler-authenticated{% else %}theme-toggler-anonymous{% endif %}">
+          <span class="nav-link text-light" data-bs-toggle="tooltip" title="Toggle dark mode">
+              <i class="fas fa-circle-half-stroke"></i>
+          </span>
+      </li>
+      <div data-component="UserMenu" data-text-color="light" data-is-authenticated="{{ request.user.is_authenticated }}" data-is-superuser="{{ request.user.is_superuser }}"></div>
+    </ul>
+  </div>
+</div>
+endef
+
+define WAGTAIL_SEARCH_TEMPLATE
+{% extends "base.html" %}
+{% load static wagtailcore_tags %}
+{% block body_class %}template-searchresults{% endblock %}
+{% block title %}Search{% endblock %}
+{% block content %}
+    <h1>Search</h1>
+    <form action="{% url 'search' %}" method="get">
+        <input type="text"
+               name="query"
+               {% if search_query %}value="{{ search_query }}"{% endif %}>
+        <input type="submit" value="Search" class="button">
+    </form>
+    {% if search_results %}
+        <ul>
+            {% for result in search_results %}
+                <li>
+                    <h4>
+                        <a href="{% pageurl result %}">{{ result }}</a>
+                    </h4> 
+                    {% if result.search_description %}{{ result.search_description }}{% endif %}
+                </li>
+            {% endfor %}
+        </ul>
+        {% if search_results.has_previous %}
+            <a href="{% url 'search' %}?query={{ search_query|urlencode }}&amp;page={{ search_results.previous_page_number }}">Previous</a>
+        {% endif %}
+        {% if search_results.has_next %}
+            <a href="{% url 'search' %}?query={{ search_query|urlencode }}&amp;page={{ search_results.next_page_number }}">Next</a>
+        {% endif %}
+    {% elif search_query %}
+        No results found
+    {% else %}
+        No results found. Try a <a href="?query=test">test query</a>?
+    {% endif %}
+{% endblock %}
+endef
+
+define WAGTAIL_SEARCH_URLS
+from django.urls import path
+from .views import search
+
+urlpatterns = [
+    path("", search, name="search")
+]
+endef
+
 define SETTINGS_THEMES
 THEMES = [
     ('light', 'Light Theme'),
@@ -2002,6 +2065,170 @@ tinymce.init({
 });
 endef
 
+define WAGTAIL_HTML_FOOTER
+{% load wagtailcore_tags %}
+endef 
+
+define WAGTAIL_HTML_HEADER
+{% load wagtailcore_tags %}
+{% wagtail_site as current_site %}
+endef 
+
+define WAGTAIL_HOME_PAGE_MODEL
+from django.db import models
+from wagtail.models import Page
+from wagtail.fields import RichTextField, StreamField
+from wagtail import blocks
+from wagtail.admin.panels import FieldPanel
+from wagtail.images.blocks import ImageChooserBlock
+from wagtail_color_panel.fields import ColorField
+from wagtail_color_panel.edit_handlers import NativeColorPanel
+
+
+class MarketingBlock(blocks.StructBlock):
+    title = blocks.CharBlock(required=False, help_text='Enter the block title')
+    content = blocks.RichTextBlock(required=False, help_text='Enter the block content')
+    images = blocks.ListBlock(ImageChooserBlock(required=False), help_text="Select one or two images for column display. Select three or more images for carousel display.")
+    image = ImageChooserBlock(required=False, help_text="Select one image for background display.")
+    block_class = blocks.CharBlock(
+        required=False,
+        help_text='Enter a CSS class for styling the marketing block',
+        classname='full title',
+        default='vh-100 bg-secondary',
+    )
+    image_class = blocks.CharBlock(
+        required=False,
+        help_text='Enter a CSS class for styling the column display image(s)',
+        classname='full title',
+        default='img-thumbnail p-5',
+    )
+    layout_class = blocks.CharBlock(
+        required=False,
+        help_text='Enter a CSS class for styling the layout.',
+        classname='full title',
+        default='d-flex flex-row',
+    )
+
+    class Meta:
+        icon = 'placeholder'
+        template = 'blocks/marketing_block.html'
+
+
+class HomePage(Page):
+    template = 'home/home_page.html'  # Create a template for rendering the home page
+    marketing_blocks = StreamField([
+        ('marketing_block', MarketingBlock()),
+    ], blank=True, null=True, use_json_field=True)
+    content_panels = Page.content_panels + [
+        FieldPanel('marketing_blocks'),
+    ]
+
+    class Meta:
+        verbose_name = 'Home Page'
+endef
+
+define WAGTAIL_HOME_PAGE_TEMPLATE
+{% extends "base.html" %}
+{% load wagtailcore_tags %}
+{% block content %}
+    <main class="{% block main_class %}{% endblock %}">
+        {% for block in page.marketing_blocks %}
+           {% include_block block %}
+        {% endfor %}
+    </main>
+{% endblock %}
+endef
+
+define WAGTAIL_BASE_TEMPLATE
+{% load static wagtailcore_tags wagtailuserbar webpack_loader %}
+
+<!DOCTYPE html>
+<html lang="en" class="h-100" data-bs-theme="{{ request.user.user_theme_preference|default:'light' }}">
+    <head>
+        <meta charset="utf-8" />
+        <title>
+            {% block title %}
+            {% if page.seo_title %}{{ page.seo_title }}{% else %}{{ page.title }}{% endif %}
+            {% endblock %}
+            {% block title_suffix %}
+            {% wagtail_site as current_site %}
+            {% if current_site and current_site.site_name %}- {{ current_site.site_name }}{% endif %}
+            {% endblock %}
+        </title>
+        {% if page.search_description %}
+        <meta name="description" content="{{ page.search_description }}" />
+        {% endif %}
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+        {# Force all links in the live preview panel to be opened in a new tab #}
+        {% if request.in_preview_panel %}
+        <base target="_blank">
+        {% endif %}
+
+        {% stylesheet_pack 'app' %}
+
+        {% block extra_css %}
+        {# Override this in templates to add extra stylesheets #}
+        {% endblock %}
+
+        <style>
+          .success {
+              background-color: #d4edda;
+              border-color: #c3e6cb;
+              color: #155724;
+          }
+          .info {
+              background-color: #d1ecf1;
+              border-color: #bee5eb;
+              color: #0c5460;
+          }
+          .warning {
+              background-color: #fff3cd;
+              border-color: #ffeeba;
+              color: #856404;
+          }
+          .danger {
+              background-color: #f8d7da;
+              border-color: #f5c6cb;
+              color: #721c24;
+          }
+        </style>
+        {% include 'favicon.html' %}
+        {% csrf_token %}
+    </head>
+    <body class="{% block body_class %}{% endblock %} d-flex flex-column h-100">
+        <main class="flex-shrink-0">
+            {% wagtailuserbar %}
+            <div id="app"></div>
+            {% include 'header.html' %}
+            {% if messages %}
+                <div class="messages container">
+                    {% for message in messages %}
+                        <div class="alert {{ message.tags }} alert-dismissible fade show"
+                             role="alert">
+                            {{ message }}
+                            <button type="button"
+                                    class="btn-close"
+                                    data-bs-dismiss="alert"
+                                    aria-label="Close"></button>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+            <div class="container">
+                {% block content %}{% endblock %}
+            </div>
+        </main>
+        {% include 'footer.html' %}
+        {% include 'offcanvas.html' %}
+        {% javascript_pack 'app' %}
+        {% block extra_js %}
+        {# Override this in templates to add extra javascript #}
+        {% endblock %}
+    </body>
+</html>
+endef
+
 define WEBPACK_CONFIG_JS
 const path = require('path');
 
@@ -2041,6 +2268,7 @@ module.exports = {
   ],
 };
 endef
+
 
 define WEBPACK_INDEX_HTML
 <!DOCTYPE html>
@@ -2100,9 +2328,6 @@ export ALLAUTH_LAYOUT_BASE
 export AUTHENTICATION_BACKENDS
 export BABELRC
 export BACKEND_APPS
-export BACKEND_URLS
-export BACKEND_URLS_DJANGO
-export BASE_TEMPLATE
 export BLOCK_CAROUSEL
 export BLOCK_MARKETING
 export COMPONENT_CLOCK
@@ -2115,8 +2340,20 @@ export CONTACT_PAGE_TEST
 export CUSTOM_ADMIN
 export CUSTOM_ENV_EC2_USER
 export CUSTOM_ENV_VAR_FILE
+export DJANGO_BASE_TEMPLATE
 export DJANGO_MANAGE_PY
 export DJANGO_SETTINGS_DEV
+export DJANGO_URLS
+export DJANGO_HOME_PAGE_URLS
+export DJANGO_HOME_PAGE_VIEWS
+export DJANGO_HOME_PAGE_TEMPLATE
+export DJANGO_HTML_OFFCANVAS
+export DJANGO_SEARCH_FORMS
+export DJANGO_SEARCH_SETTINGS
+export DJANGO_SEARCH_TEMPLATE
+export DJANGO_SEARCH_URLS
+export DJANGO_SEARCH_UTILS
+export DJANGO_SEARCH_VIEWS
 export DOCKERFILE
 export DOCKERCOMPOSE
 export ESLINTRC
@@ -2129,11 +2366,8 @@ export FRONTEND_STYLES
 export GIT_IGNORE
 export HTML_ERROR
 export HTML_INDEX
-export HOME_PAGE_MODEL
-export HOME_PAGE_TEMPLATE
 export HTML_FOOTER
 export HTML_HEADER
-export HTML_OFFCANVAS
 export INTERNAL_IPS
 export JENKINS_FILE
 export LOGGING_DEMO_VIEWS
@@ -2162,6 +2396,7 @@ export PAYMENT_VIEW
 export PAYMENT_VIEW_TEMPLATE
 export PAYMENT_VIEW_TEMPLATE_SUCCESS
 export REQUIREMENTS_TEST
+export SEPARATOR
 export SETTINGS_THEMES
 export SITEPAGE_MODEL
 export SITEPAGE_TEMPLATE
@@ -2172,11 +2407,19 @@ export SITEUSER_URLS
 export SITEUSER_VIEW
 export SITEUSER_VIEW_TEMPLATE
 export SITEUSER_EDIT_TEMPLATE
-export SEARCH_TEMPLATE
-export SEARCH_URLS
+export WAGTAIL_SEARCH_TEMPLATE
+export WAGTAIL_SEARCH_URLS
 export THEME_BLUE
 export THEME_TOGGLER
 export TINYMCE_JS
+export WAGTAIL_BASE_TEMPLATE
+export WAGTAIL_HOME_PAGE_MODEL
+export WAGTAIL_HOME_PAGE_TEMPLATE
+export WAGTAIL_HOME_PAGE_VIEWS
+export WAGTAIL_HOME_PAGE_URLS
+export WAGTAIL_HTML_HEADER
+export WAGTAIL_HTML_OFFCANVAS
+export WAGTAIL_URLS
 export WEBPACK_CONFIG_JS
 export WEBPACK_INDEX_HTML
 export WEBPACK_INDEX_JS
@@ -2331,7 +2574,7 @@ db-mysql-init-default:
 	-mysqladmin -u root drop $(PROJECT_NAME)
 	-mysqladmin -u root create $(PROJECT_NAME)
 
-db-pg-init-default:
+db-pg-init-default: separator
 	-dropdb $(PROJECT_NAME)
 	-createdb $(PROJECT_NAME)
 
@@ -2346,33 +2589,44 @@ django-custom-admin-default:
 	@echo "$$CUSTOM_ADMIN" > backend/admin.py
 	@echo "$$BACKEND_APPS" > backend/apps.py
 
+django-templates-default:
+	@$(ADD_DIR) backend/templates
+	@echo "$$DJANGO_BASE_TEMPLATE" > backend/templates/base.html
+
 django-init-default: db-init django-install
 	django-admin startproject backend .
-	@$(ADD_DIR) backend/settings
-	@$(COPY_FILE) backend/settings.py backend/settings/base.py
-	@$(DEL_FILE) backend/settings.py
-	@echo "import os" >> backend/settings/base.py
-	@echo "STATICFILES_DIRS = []" >> backend/settings/base.py
+	@$(MAKE) django-templates
 	@echo "$$DJANGO_MANAGE_PY" > manage.py
-	@echo "$$DJANGO_SETTINGS_DEV" > backend/settings/dev.py
-	@$(MAKE) django-url-patterns
-	@$(MAKE) django-init-common
+	@$(MAKE) django-settings-directory
+	export SETTINGS=backend/settings/base.py; \
+		$(MAKE) django-home
+	export SETTINGS=backend/settings/base.py; \
+		$(MAKE) django-search
+	@$(MAKE) django-urls
+	@$(MAKE) separator
+	@$(MAKE) django-common
+	@$(MAKE) separator
 	export SETTINGS=backend/settings/base.py; \
 		$(MAKE) django-siteuser
+	@$(MAKE) separator
 	@$(MAKE) django-migrations
 	@$(MAKE) django-migrate
 	@$(MAKE) su
-	@$(MAKE) django-frontend-app
+	@$(MAKE) django-frontend
+	@$(MAKE) separator
 	@$(MAKE) npm-install
 	@$(MAKE) django-npm-install-save
 	@$(MAKE) django-npm-install-save-dev
+	@$(MAKE) wagtail-backend-templates
+	@@echo "$$DJANGO_HTML_OFFCANVAS" > backend/templates/offcanvas.html
 	@$(MAKE) pip-init-test
+	@$(MAKE) separator
 	@$(MAKE) readme
 	@$(MAKE) gitignore
 	@$(MAKE) freeze
 	@$(MAKE) serve
 
-django-init-common-default:
+django-common-default:
 	@echo "$$DOCKERFILE" > Dockerfile
 	@echo "$$DOCKERCOMPOSE" > docker-compose.yml
 	export SETTINGS=backend/settings/base.py DEV_SETTINGS=backend/settings/dev.py; \
@@ -2384,7 +2638,7 @@ django-init-common-default:
 	$(GIT_ADD) Dockerfile
 	$(GIT_ADD) .dockerignore
 
-django-install-default:
+django-install-default: separator
 	$(ENSURE_PIP)
 	python -m pip install \
         Faker \
@@ -2437,7 +2691,7 @@ django-install-default:
         reportlab \
         texttable \
 
-django-frontend-app-default: python-webpack-init
+django-frontend-default: python-webpack-init
 	$(ADD_DIR) frontend/src/context
 	$(ADD_DIR) frontend/src/images
 	$(ADD_DIR) frontend/src/utils
@@ -2456,17 +2710,26 @@ django-frontend-app-default: python-webpack-init
 	@echo "$$THEME_BLUE" > frontend/src/styles/theme-blue.scss
 	@echo "$$THEME_TOGGLER" > frontend/src/utils/themeToggler.js
 	@echo "$$TINYMCE_JS" > frontend/src/utils/tinymce.js
-	-$(GIT_ADD) home
-	-$(GIT_ADD) frontend
-	-$(GIT_ADD) .babelrc
-	-$(GIT_ADD) .browserslistrc
-	-$(GIT_ADD) .eslintrc
-	-$(GIT_ADD) .nvmrc
-	-$(GIT_ADD) .stylelintrc.json
-	-$(GIT_ADD) docker-compose.yml
-	-$(GIT_ADD) package-lock.json
-	-$(GIT_ADD) package.json
-	-$(GIT_ADD) postcss.config.js
+	$(GIT_ADD) home
+	$(GIT_ADD) frontend
+	$(GIT_ADD) .babelrc
+	$(GIT_ADD) .browserslistrc
+	$(GIT_ADD) .eslintrc
+	$(GIT_ADD) .nvmrc
+	$(GIT_ADD) .stylelintrc.json
+	$(GIT_ADD) docker-compose.yml
+	$(GIT_ADD) package-lock.json
+	$(GIT_ADD) package.json
+	$(GIT_ADD) postcss.config.js
+
+django-home-default:
+	python manage.py startapp home
+	$(ADD_DIR) home/templates
+	@echo "$$DJANGO_HOME_PAGE_TEMPLATE" > home/templates/home.html
+	@echo "$$DJANGO_HOME_PAGE_VIEWS" > home/views.py
+	@echo "$$DJANGO_HOME_PAGE_URLS" > home/urls.py
+	@echo "INSTALLED_APPS.append('home')" >> $(SETTINGS)
+	$(GIT_ADD) home
 
 django-payment-default:
 	python manage.py startapp payment
@@ -2489,6 +2752,17 @@ django-payment-default:
 	python manage.py makemigrations payment
 	@echo "$$PAYMENT_MIGRATION" > payment/migrations/0002_set_stripe_api_keys.py
 	$(GIT_ADD) payment/
+
+django-search-default:
+	python manage.py startapp search
+	$(ADD_DIR) search/templates
+	@echo "$$DJANGO_SEARCH_FORMS" > search/forms.py
+	@echo "$$DJANGO_SEARCH_SETTINGS" >> $(SETTINGS)
+	@echo "$$DJANGO_SEARCH_TEMPLATE" > search/templates/search.html
+	@echo "$$DJANGO_SEARCH_URLS" > search/urls.py
+	@echo "$$DJANGO_SEARCH_UTILS" > search/utils.py
+	@echo "$$DJANGO_SEARCH_VIEWS" > search/views.py
+	$(GIT_ADD) search
 
 django-secret-default:
 	@python -c "from secrets import token_urlsafe; print(token_urlsafe(50))"
@@ -2554,6 +2828,14 @@ django-serve-default:
 	npm run watch &
 	python manage.py runserver 0.0.0.0:8000
 
+django-settings-directory-default:
+	@$(ADD_DIR) backend/settings
+	@$(COPY_FILE) backend/settings.py backend/settings/base.py
+	@$(DEL_FILE) backend/settings.py
+	@echo "import os" >> backend/settings/base.py
+	@echo "STATICFILES_DIRS = []" >> backend/settings/base.py
+	@echo "$$DJANGO_SETTINGS_DEV" > backend/settings/dev.py
+
 django-settings-default:
 	@echo "# $(PROJECT_NAME)" >> $(SETTINGS)
 	@echo "ALLOWED_HOSTS = ['*']" >> $(SETTINGS)
@@ -2579,6 +2861,8 @@ django-settings-default:
 	@echo "MIDDLEWARE.append('allauth.account.middleware.AccountMiddleware')" >> $(SETTINGS)
 	@echo "MIDDLEWARE.append('debug_toolbar.middleware.DebugToolbarMiddleware')" >> $(DEV_SETTINGS)
 	@echo "MIDDLEWARE.append('hijack.middleware.HijackUserMiddleware')" >> $(DEV_SETTINGS)
+	@echo "PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))" >> $(SETTINGS)
+	@echo "BASE_DIR = os.path.dirname(PROJECT_DIR)" >> $(SETTINGS)
 	@echo "STATICFILES_DIRS.append(os.path.join(BASE_DIR, 'frontend/build'))" >> $(SETTINGS)
 	@echo "WEBPACK_LOADER = { 'MANIFEST_FILE': os.path.join(BASE_DIR, 'frontend/build/manifest.json'), }" >> $(SETTINGS)
 	@echo "$$REST_FRAMEWORK" >> $(SETTINGS)
@@ -2590,6 +2874,7 @@ django-settings-default:
 	@echo "SILENCED_SYSTEM_CHECKS = ['django_recaptcha.recaptcha_test_key_error']" >> $(SETTINGS)
 	@echo "EXPLORER_CONNECTIONS = { 'Default': 'default' }" >> $(SETTINGS)
 	@echo "EXPLORER_DEFAULT_CONNECTION = 'default'" >> $(SETTINGS)
+	@echo "TEMPLATES[0]['DIRS'].append(os.path.join(PROJECT_DIR, 'templates'))" >> $(SETTINGS)
 
 django-crispy-default:
 	@echo "CRISPY_TEMPLATE_PACK = 'bootstrap5'" >> $(SETTINGS)
@@ -2612,8 +2897,8 @@ django-user-default:
 	python manage.py shell -c "from django.contrib.auth.models import User; \
         User.objects.create_user('user', '', 'user')"
 
-django-url-patterns-default:
-	@echo "$$BACKEND_URLS_DJANGO" > backend/urls.py
+django-urls-default:
+	@echo "$$DJANGO_URLS" > backend/urls.py
 
 django-npm-install-save-default:
 	npm install \
@@ -2693,6 +2978,10 @@ git-branches-default:
 
 git-commit-default:
 	-@$(GIT_COMMIT)
+
+git-commit-last-default:
+	git commit -a -m "$(shell git log -1 --pretty=%B)"
+	@$(GIT_PUSH)
 
 git-commit-empty-default:
 	git commit --allow-empty -m "Empty-Commit"
@@ -2863,6 +3152,9 @@ reveal-serve-default:
 	npm run watch &
 	python -m http.server
 
+separator:
+	@echo "$$SEPARATOR"
+
 sphinx-init-default: sphinx-install
 	sphinx-quickstart -q -p $(PROJECT_NAME) -a $(USER) -v 0.0.1 $(RANDIR)
 	$(COPY_DIR) $(RANDIR)/* .
@@ -2917,8 +3209,9 @@ usage-default:
 	@echo "   make help    Print all targets"
 	@echo "   make usage   Print this message"
 
-wagtail-search-urls:
-	@echo "$$SEARCH_URLS" > search/urls.py
+wagtail-search-default:
+	@echo "$$WAGTAIL_SEARCH_TEMPLATE" > search/templates/search/search.html
+	@echo "$$WAGTAIL_SEARCH_URLS" > search/urls.py
 	$(GIT_ADD) search
 
 wagtail-settings-default:
@@ -2931,8 +3224,6 @@ wagtail-settings-default:
 	@echo "TEMPLATES[0]['OPTIONS']['context_processors'].append('wagtail.contrib.settings.context_processors.settings')" >> $(SETTINGS)
 	@echo "TEMPLATES[0]['OPTIONS']['context_processors'].append('wagtailmenus.context_processors.wagtailmenus')">> $(SETTINGS)
 
-wagtail-search-template:
-	@echo "$$SEARCH_TEMPLATE" > search/templates/search/search.html
 
 wagtail-privacy-default:
 	python manage.py startapp privacy
@@ -2944,10 +3235,11 @@ wagtail-privacy-default:
 	$(GIT_ADD) privacy/
 
 wagtail-base-default:
-	@echo "$$BASE_TEMPLATE" > backend/templates/base.html
+	@echo "$$WAGTAIL_BASE_TEMPLATE" > backend/templates/base.html
 
 wagtail-header-default:
-	@echo "$$HTML_HEADER" > backend/templates/header.html
+	@echo "$$WAGTAIL_HTML_HEADER" > backend/templates/header.html
+	@echo "$$HTML_HEADER" >> backend/templates/header.html
 
 wagtail-clean-default:
 	-@for dir in "$(WAGTAIL_CLEAN_DIRS)"; do \
@@ -2958,8 +3250,8 @@ wagtail-clean-default:
 	done
 
 wagtail-homepage-default:
-	@echo "$$HOME_PAGE_MODEL" > home/models.py
-	@echo "$$HOME_PAGE_TEMPLATE" > home/templates/home/home_page.html
+	@echo "$$WAGTAIL_HOME_PAGE_MODEL" > home/models.py
+	@echo "$$WAGTAIL_HOME_PAGE_TEMPLATE" > home/templates/home/home_page.html
 	$(ADD_DIR) home/templates/blocks
 	@echo "$$BLOCK_MARKETING" > home/templates/blocks/marketing_block.html
 	@echo "$$BLOCK_CAROUSEL" > home/templates/blocks/carousel_block.html
@@ -2968,20 +3260,20 @@ wagtail-homepage-default:
 wagtail-backend-templates-default:
 	$(ADD_DIR) backend/templates/allauth/layouts
 	@echo "$$ALLAUTH_LAYOUT_BASE" > backend/templates/allauth/layouts/base.html
-	@echo "$$BASE_TEMPLATE" > backend/templates/base.html
+	# @echo "$$WAGTAIL_BASE_TEMPLATE" > backend/templates/base.html
 	@echo "$$FAVICON_TEMPLATE" > backend/templates/favicon.html
-	@echo "$$HTML_HEADER" > backend/templates/header.html
-	@echo "$$HTML_FOOTER" > backend/templates/footer.html
-	@echo "$$HTML_OFFCANVAS" > backend/templates/offcanvas.html
+	@echo "$$HTML_HEADER" >> backend/templates/header.html
+	@echo "$$HTML_FOOTER" >> backend/templates/footer.html
+	@echo "$$WAGTAIL_HTML_OFFCANVAS" > backend/templates/offcanvas.html
 	$(GIT_ADD) backend/templates/
 
 wagtail-start-default:
 	wagtail start backend .
 
-wagtail-url-patterns-default:
-	@echo "$$BACKEND_URLS" > backend/urls.py
+wagtail-urls-default:
+	@echo "$$WAGTAIL_URLS" > backend/urls.py
 
-wagtail-init-default: db-init django-install wagtail-install wagtail-start django-init-common
+wagtail-init-default: db-init django-install wagtail-install wagtail-start django-common
 	export SETTINGS=backend/settings/base.py; \
         $(MAKE) wagtail-settings
 	export SETTINGS=backend/settings/base.py; \
@@ -2990,10 +3282,9 @@ wagtail-init-default: db-init django-install wagtail-install wagtail-start djang
 		$(MAKE) django-logging-demo
 	export SETTINGS=backend/settings/base.py; \
 		$(MAKE) django-payment
-	@$(MAKE) wagtail-url-patterns
+	@$(MAKE) wagtail-urls
 	@$(MAKE) wagtail-homepage
-	@$(MAKE) wagtail-search-template
-	@$(MAKE) wagtail-search-urls
+	@$(MAKE) wagtail-search
 	export SETTINGS=backend/settings/base.py; \
 		$(MAKE) django-siteuser
 	export SETTINGS=backend/settings/base.py; \
@@ -3004,11 +3295,12 @@ wagtail-init-default: db-init django-install wagtail-install wagtail-start djang
 		$(MAKE) wagtail-sitepage
 	export SETTINGS=backend/settings/base.py; \
 		$(MAKE) django-crispy
+	@$(MAKE) wagtail-base
 	@$(MAKE) wagtail-backend-templates
 	@$(MAKE) django-migrations
 	@$(MAKE) django-migrate
 	@$(MAKE) su
-	@$(MAKE) django-frontend-app
+	@$(MAKE) django-frontend
 	@$(MAKE) npm-install
 	@$(MAKE) django-npm-install-save
 	@$(MAKE) django-npm-install-save-dev
@@ -3105,6 +3397,7 @@ gitignore-default: git-ignore
 h-default: help
 i-default: install
 index-default: html-index
+last-default: git-commit-last
 error-default: html-error
 eb-up-default: eb-upgrade
 init-default: wagtail-init

@@ -20,7 +20,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = "django-insecure-^odi8iz_%nmy+p_x_l4cesx^6gpiol-doiug7)&v&ua3t+#(v5"
+SECRET_KEY = "django-insecure-wai&wjm67arvsh=-og&o7ma174!+wdzm18^=xl40q#910_#5tv"
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
@@ -120,35 +120,36 @@ STATIC_URL = "static/"
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.0/ref/settings/#default-auto-field
 
-# DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 import os
 STATICFILES_DIRS = []
+INSTALLED_APPS.append('home')
+SEARCH_MODELS = [
+    # 'app_name.Article',
+    # 'app_name.BlogPost',
+    # 'app_name.Comment',
+    # Add other models as needed
+]
 # test_django_mongodb
 ALLOWED_HOSTS = ['*']
 import dj_database_url  # noqa
-# DATABASE_URL = os.environ.get('DATABASE_URL',          'postgres://:@:/test_django_mongodb')
-# DATABASES['default'] = dj_database_url.parse(DATABASE_URL)
-
-DATABASES = {
-    "default": {
-        "ENGINE": "django_mongodb",
-        "NAME": "test",
-    },
-}
-
+DATABASE_URL = os.environ.get('DATABASE_URL',          'postgres://:@:/test_django_mongodb')
+DATABASES['default'] = dj_database_url.parse(DATABASE_URL)
 INSTALLED_APPS.append('webpack_boilerplate')
 INSTALLED_APPS.append('rest_framework')
 INSTALLED_APPS.append('rest_framework.authtoken')
-# INSTALLED_APPS.append('allauth')
-# INSTALLED_APPS.append('allauth.account')
-# INSTALLED_APPS.append('allauth.socialaccount')
+INSTALLED_APPS.append('allauth')
+INSTALLED_APPS.append('allauth.account')
+INSTALLED_APPS.append('allauth.socialaccount')
 INSTALLED_APPS.append('django_extensions')
 INSTALLED_APPS.append('crispy_forms')
 INSTALLED_APPS.append('crispy_bootstrap5')
 INSTALLED_APPS.append('django_recaptcha')
 # INSTALLED_APPS = [app for app in INSTALLED_APPS if app != 'django.contrib.admin']
 # INSTALLED_APPS.append('backend.apps.CustomAdminConfig')
-# MIDDLEWARE.append('allauth.account.middleware.AccountMiddleware')
+MIDDLEWARE.append('allauth.account.middleware.AccountMiddleware')
+PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+BASE_DIR = os.path.dirname(PROJECT_DIR)
 STATICFILES_DIRS.append(os.path.join(BASE_DIR, 'frontend/build'))
 WEBPACK_LOADER = { 'MANIFEST_FILE': os.path.join(BASE_DIR, 'frontend/build/manifest.json'), }
 REST_FRAMEWORK = {
@@ -163,14 +164,15 @@ THEMES = [
     ('dark', 'Dark Theme'),
 ]
 LOGIN_REDIRECT_URL = '/'
-# DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 AUTHENTICATION_BACKENDS = [
     'django.contrib.auth.backends.ModelBackend',
-    # 'allauth.account.auth_backends.AuthenticationBackend',
+    'allauth.account.auth_backends.AuthenticationBackend',
 ]
 SILENCED_SYSTEM_CHECKS = ['django_recaptcha.recaptcha_test_key_error']
 EXPLORER_CONNECTIONS = { 'Default': 'default' }
 EXPLORER_DEFAULT_CONNECTION = 'default'
+TEMPLATES[0]['DIRS'].append(os.path.join(PROJECT_DIR, 'templates'))
 INSTALLED_APPS.append('siteuser')
+INSTALLED_APPS.append('django_mongodb')
 AUTH_USER_MODEL = 'siteuser.User'
-DEFAULT_AUTO_FIELD = "django_mongodb.fields.MongoAutoField"

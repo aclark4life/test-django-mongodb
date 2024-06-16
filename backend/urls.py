@@ -2,7 +2,7 @@ from django.conf import settings
 from django.urls import include, path
 from django.contrib import admin
 from rest_framework import routers, serializers, viewsets
-# from dj_rest_auth.registration.views import RegisterView
+from dj_rest_auth.registration.views import RegisterView
 from siteuser.models import User
 urlpatterns = []
 if settings.DEBUG:
@@ -10,11 +10,13 @@ if settings.DEBUG:
 		path("django/doc/", include("django.contrib.admindocs.urls")),
 	]
 urlpatterns += [
-    # path('accounts/', include('allauth.urls')),
+    path('accounts/', include('allauth.urls')),
     path('django/', admin.site.urls),
     path('user/', include('siteuser.urls')),
     path('explorer/', include('explorer.urls')),
-    path("hijack/", include("hijack.urls")),
+    path('hijack/', include('hijack.urls')),
+    path('search/', include('search.urls')),
+    path('', include('home.urls')),
 ]
 if settings.DEBUG:
     from django.conf.urls.static import static
