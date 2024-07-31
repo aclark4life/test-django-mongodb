@@ -233,6 +233,7 @@ EXPLORER_CONNECTIONS = { 'Default': 'default' }
 EXPLORER_DEFAULT_CONNECTION = 'default'
 TEMPLATES[0]['DIRS'].append(os.path.join(PROJECT_DIR, 'templates'))
 DATABASE_URL = os.environ.get('DATABASE_URL', 'django_mongodb://:@:/test-django-mongodb')
+DEFAULT_AUTO_FIELD = 'django_mongodb.fields.MongoAutoField'
 INSTALLED_APPS.append('wagtailmenus')
 INSTALLED_APPS.append('wagtailmarkdown')
 INSTALLED_APPS.append('wagtail_modeladmin')
