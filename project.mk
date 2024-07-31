@@ -1,18 +1,7 @@
 PROJECT_NAME := test-django-mongodb
 
-define DJANGO_MONGODB_SETTINGS
-DEFAULT_AUTO_FIELD = 'django_mongodb.fields.MongoAutoField'
-DATABASES = {
-    "default": {
-        "ENGINE": "django_mongodb",
-        "NAME": "test",
-    },
-}
-endef
-export DJANGO_MONGODB_SETTINGS
-
 django-settings:
-	echo "$$DJANGO_MONGODB_SETTINGS" >> backend/settings/base.py
+	export SETTINGS=backend/settings/base.py DEV_SETTINGS=backend/settings/dev.py; $(MAKE) django-settings-default; @echo "DATABASE_URL = os.environ.get('DATABASE_URL', 'django_mongodb://$(DB_USER):$(DB_PASS)@$(DB_HOST):$(DB_PORT)/$(PROJECT_NAME)')" >> $(SETTINGS)
 
 install:
 	$(MAKE) pip-install-default

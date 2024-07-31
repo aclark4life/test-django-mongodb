@@ -189,49 +189,13 @@ WAGTAILDOCS_EXTENSIONS = [
     "xlsx",
     "zip",
 ]
-# test_django_mongodb
-ALLOWED_HOSTS = ['*']
-import dj_database_url  # noqa
-DATABASE_URL = os.environ.get('DATABASE_URL',          'postgres://:@:/test_django_mongodb')
-DATABASES['default'] = dj_database_url.parse(DATABASE_URL)
-INSTALLED_APPS.append('webpack_boilerplate')
-INSTALLED_APPS.append('rest_framework')
-INSTALLED_APPS.append('rest_framework.authtoken')
-INSTALLED_APPS.append('allauth')
-INSTALLED_APPS.append('allauth.account')
-INSTALLED_APPS.append('allauth.socialaccount')
-INSTALLED_APPS.append('django_extensions')
-INSTALLED_APPS.append('crispy_forms')
-INSTALLED_APPS.append('crispy_bootstrap5')
-INSTALLED_APPS.append('django_recaptcha')
-# INSTALLED_APPS = [app for app in INSTALLED_APPS if app != 'django.contrib.admin']
-# INSTALLED_APPS.append('backend.apps.CustomAdminConfig')
-MIDDLEWARE.append('allauth.account.middleware.AccountMiddleware')
-PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-BASE_DIR = os.path.dirname(PROJECT_DIR)
-STATICFILES_DIRS.append(os.path.join(BASE_DIR, 'frontend/build'))
-WEBPACK_LOADER = { 'MANIFEST_FILE': os.path.join(BASE_DIR, 'frontend/build/manifest.json'), }
-REST_FRAMEWORK = {
-    # Use Django's standard `django.contrib.auth` permissions,
-    # or allow read-only access for unauthenticated users.
-    'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.DjangoModelPermissionsOrAnonReadOnly'
-    ]
+DEFAULT_AUTO_FIELD = 'django_mongodb.fields.MongoAutoField'
+DATABASES = {
+    "default": {
+        "ENGINE": "django_mongodb",
+        "NAME": "test",
+    },
 }
-THEMES = [
-    ('light', 'Light Theme'),
-    ('dark', 'Dark Theme'),
-]
-LOGIN_REDIRECT_URL = '/'
-DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
-AUTHENTICATION_BACKENDS = [
-    'django.contrib.auth.backends.ModelBackend',
-    'allauth.account.auth_backends.AuthenticationBackend',
-]
-SILENCED_SYSTEM_CHECKS = ['django_recaptcha.recaptcha_test_key_error']
-EXPLORER_CONNECTIONS = { 'Default': 'default' }
-EXPLORER_DEFAULT_CONNECTION = 'default'
-TEMPLATES[0]['DIRS'].append(os.path.join(PROJECT_DIR, 'templates'))
 INSTALLED_APPS.append('wagtailmenus')
 INSTALLED_APPS.append('wagtailmarkdown')
 INSTALLED_APPS.append('wagtail_modeladmin')
@@ -264,8 +228,3 @@ STRIPE_SECRET_KEY = os.environ.get('STRIPE_SECRET_KEY')
 STRIPE_TEST_SECRET_KEY = os.environ.get('STRIPE_TEST_SECRET_KEY')
 INSTALLED_APPS.append('siteuser')
 AUTH_USER_MODEL = 'siteuser.User'
-INSTALLED_APPS.append('privacy')
-INSTALLED_APPS.append('contactpage')
-INSTALLED_APPS.append('sitepage')
-CRISPY_TEMPLATE_PACK = 'bootstrap5'
-CRISPY_ALLOWED_TEMPLATE_PACKS = 'bootstrap5'
