@@ -232,3 +232,41 @@ SILENCED_SYSTEM_CHECKS = ['django_recaptcha.recaptcha_test_key_error']
 EXPLORER_CONNECTIONS = { 'Default': 'default' }
 EXPLORER_DEFAULT_CONNECTION = 'default'
 TEMPLATES[0]['DIRS'].append(os.path.join(PROJECT_DIR, 'templates'))
+DATABASE_URL = os.environ.get('DATABASE_URL', 'django_mongodb://:@:/test-django-mongodb')
+INSTALLED_APPS.append('wagtailmenus')
+INSTALLED_APPS.append('wagtailmarkdown')
+INSTALLED_APPS.append('wagtail_modeladmin')
+INSTALLED_APPS.append('wagtailseo')
+INSTALLED_APPS.append('wagtail_color_panel')
+INSTALLED_APPS.append('wagtail.contrib.settings')
+TEMPLATES[0]['OPTIONS']['context_processors'].append('wagtail.contrib.settings.context_processors.settings')
+TEMPLATES[0]['OPTIONS']['context_processors'].append('wagtailmenus.context_processors.wagtailmenus')
+INSTALLED_APPS.append('model_form_demo')
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+        },
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': 'DEBUG',
+    },
+}
+INSTALLED_APPS.append('logging_demo')
+INSTALLED_APPS.append('payments')
+INSTALLED_APPS.append('djstripe')
+DJSTRIPE_FOREIGN_KEY_TO_FIELD = 'id'
+DJSTRIPE_WEBHOOK_VALIDATION = 'retrieve_event'
+STRIPE_PUBLISHABLE_KEY = os.environ.get('STRIPE_PUBLISHABLE_KEY')
+STRIPE_SECRET_KEY = os.environ.get('STRIPE_SECRET_KEY')
+STRIPE_TEST_SECRET_KEY = os.environ.get('STRIPE_TEST_SECRET_KEY')
+INSTALLED_APPS.append('siteuser')
+AUTH_USER_MODEL = 'siteuser.User'
+INSTALLED_APPS.append('privacy')
+INSTALLED_APPS.append('contactpage')
+INSTALLED_APPS.append('sitepage')
+CRISPY_TEMPLATE_PACK = 'bootstrap5'
+CRISPY_ALLOWED_TEMPLATE_PACKS = 'bootstrap5'

@@ -1,1 +1,1 @@
-# test_django_mongodb
+# test-django-mongodb
