@@ -10,27 +10,35 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.0/ref/settings/
 """
 
-from pathlib import Path
+# Build paths inside the project like this: os.path.join(BASE_DIR, ...)
+import os
 
-# Build paths inside the project like this: BASE_DIR / 'subdir'.
-BASE_DIR = Path(__file__).resolve().parent.parent
+PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+BASE_DIR = os.path.dirname(PROJECT_DIR)
 
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.0/howto/deployment/checklist/
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = "django-insecure-wai&wjm67arvsh=-og&o7ma174!+wdzm18^=xl40q#910_#5tv"
-
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
-
-ALLOWED_HOSTS = []
-
 
 # Application definition
 
 INSTALLED_APPS = [
+    "home",
+    "search",
+    "wagtail.contrib.forms",
+    "wagtail.contrib.redirects",
+    "wagtail.embeds",
+    "wagtail.sites",
+    "wagtail.users",
+    "wagtail.snippets",
+    "wagtail.documents",
+    "wagtail.images",
+    "wagtail.search",
+    "wagtail.admin",
+    "wagtail",
+    "modelcluster",
+    "taggit",
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -40,13 +48,14 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
-    "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "django.middleware.security.SecurityMiddleware",
+    "wagtail.contrib.redirects.middleware.RedirectMiddleware",
 ]
 
 ROOT_URLCONF = "backend.urls"
@@ -54,7 +63,9 @@ ROOT_URLCONF = "backend.urls"
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [],
+        "DIRS": [
+            os.path.join(PROJECT_DIR, "templates"),
+        ],
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
@@ -76,7 +87,7 @@ WSGI_APPLICATION = "backend.wsgi.application"
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
+        "NAME": os.path.join(BASE_DIR, "db.sqlite3"),
     }
 }
 
@@ -115,20 +126,68 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.0/howto/static-files/
 
-STATIC_URL = "static/"
+STATICFILES_FINDERS = [
+    "django.contrib.staticfiles.finders.FileSystemFinder",
+    "django.contrib.staticfiles.finders.AppDirectoriesFinder",
+]
 
-# Default primary key field type
-# https://docs.djangoproject.com/en/5.0/ref/settings/#default-auto-field
+STATICFILES_DIRS = [
+    os.path.join(PROJECT_DIR, "static"),
+]
 
-DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
-import os
-STATICFILES_DIRS = []
-INSTALLED_APPS.append('home')
-SEARCH_MODELS = [
-    # 'app_name.Article',
-    # 'app_name.BlogPost',
-    # 'app_name.Comment',
-    # Add other models as needed
+STATIC_ROOT = os.path.join(BASE_DIR, "static")
+STATIC_URL = "/static/"
+
+MEDIA_ROOT = os.path.join(BASE_DIR, "media")
+MEDIA_URL = "/media/"
+
+# Default storage settings, with the staticfiles storage updated.
+# See https://docs.djangoproject.com/en/5.0/ref/settings/#std-setting-STORAGES
+STORAGES = {
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
+    # ManifestStaticFilesStorage is recommended in production, to prevent
+    # outdated JavaScript / CSS assets being served from cache
+    # (e.g. after a Wagtail upgrade).
+    # See https://docs.djangoproject.com/en/5.0/ref/contrib/staticfiles/#manifeststaticfilesstorage
+    "staticfiles": {
+        "BACKEND": "django.contrib.staticfiles.storage.ManifestStaticFilesStorage",
+    },
+}
+
+
+# Wagtail settings
+
+WAGTAIL_SITE_NAME = "backend"
+
+# Search
+# https://docs.wagtail.org/en/stable/topics/search/backends.html
+WAGTAILSEARCH_BACKENDS = {
+    "default": {
+        "BACKEND": "wagtail.search.backends.database",
+    }
+}
+
+# Base URL to use when referring to full URLs within the Wagtail admin backend -
+# e.g. in notification emails. Don't include '/admin' or a trailing slash
+WAGTAILADMIN_BASE_URL = "http://example.com"
+
+# Allowed file extensions for documents in the document library.
+# This can be omitted to allow all files, but note that this may present a security risk
+# if untrusted users are allowed to upload files -
+# see https://docs.wagtail.org/en/stable/advanced_topics/deploying.html#user-uploaded-files
+WAGTAILDOCS_EXTENSIONS = [
+    "csv",
+    "docx",
+    "key",
+    "odt",
+    "pdf",
+    "pptx",
+    "rtf",
+    "txt",
+    "xlsx",
+    "zip",
 ]
 # test_django_mongodb
 ALLOWED_HOSTS = ['*']
@@ -138,16 +197,16 @@ DATABASES['default'] = dj_database_url.parse(DATABASE_URL)
 INSTALLED_APPS.append('webpack_boilerplate')
 INSTALLED_APPS.append('rest_framework')
 INSTALLED_APPS.append('rest_framework.authtoken')
-# INSTALLED_APPS.append('allauth')
-# INSTALLED_APPS.append('allauth.account')
-# INSTALLED_APPS.append('allauth.socialaccount')
+INSTALLED_APPS.append('allauth')
+INSTALLED_APPS.append('allauth.account')
+INSTALLED_APPS.append('allauth.socialaccount')
 INSTALLED_APPS.append('django_extensions')
 INSTALLED_APPS.append('crispy_forms')
 INSTALLED_APPS.append('crispy_bootstrap5')
 INSTALLED_APPS.append('django_recaptcha')
 # INSTALLED_APPS = [app for app in INSTALLED_APPS if app != 'django.contrib.admin']
 # INSTALLED_APPS.append('backend.apps.CustomAdminConfig')
-# MIDDLEWARE.append('allauth.account.middleware.AccountMiddleware')
+MIDDLEWARE.append('allauth.account.middleware.AccountMiddleware')
 PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BASE_DIR = os.path.dirname(PROJECT_DIR)
 STATICFILES_DIRS.append(os.path.join(BASE_DIR, 'frontend/build'))
@@ -167,20 +226,46 @@ LOGIN_REDIRECT_URL = '/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 AUTHENTICATION_BACKENDS = [
     'django.contrib.auth.backends.ModelBackend',
-    # 'allauth.account.auth_backends.AuthenticationBackend',
+    'allauth.account.auth_backends.AuthenticationBackend',
 ]
 SILENCED_SYSTEM_CHECKS = ['django_recaptcha.recaptcha_test_key_error']
 EXPLORER_CONNECTIONS = { 'Default': 'default' }
 EXPLORER_DEFAULT_CONNECTION = 'default'
 TEMPLATES[0]['DIRS'].append(os.path.join(PROJECT_DIR, 'templates'))
-INSTALLED_APPS.append('siteuser')
-INSTALLED_APPS.append('django_mongodb')
-AUTH_USER_MODEL = 'siteuser.User'
-DEFAULT_AUTO_FIELD = 'django_mongodb.fields.MongoAutoField'
-
-DATABASES = {
-    "default": {
-        "ENGINE": "django_mongodb",
-        "NAME": "test",
+INSTALLED_APPS.append('wagtailmenus')
+INSTALLED_APPS.append('wagtailmarkdown')
+INSTALLED_APPS.append('wagtail_modeladmin')
+INSTALLED_APPS.append('wagtailseo')
+INSTALLED_APPS.append('wagtail_color_panel')
+INSTALLED_APPS.append('wagtail.contrib.settings')
+TEMPLATES[0]['OPTIONS']['context_processors'].append('wagtail.contrib.settings.context_processors.settings')
+TEMPLATES[0]['OPTIONS']['context_processors'].append('wagtailmenus.context_processors.wagtailmenus')
+INSTALLED_APPS.append('model_form_demo')
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+        },
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': 'DEBUG',
     },
 }
+INSTALLED_APPS.append('logging_demo')
+INSTALLED_APPS.append('payments')
+INSTALLED_APPS.append('djstripe')
+DJSTRIPE_FOREIGN_KEY_TO_FIELD = 'id'
+DJSTRIPE_WEBHOOK_VALIDATION = 'retrieve_event'
+STRIPE_PUBLISHABLE_KEY = os.environ.get('STRIPE_PUBLISHABLE_KEY')
+STRIPE_SECRET_KEY = os.environ.get('STRIPE_SECRET_KEY')
+STRIPE_TEST_SECRET_KEY = os.environ.get('STRIPE_TEST_SECRET_KEY')
+INSTALLED_APPS.append('siteuser')
+AUTH_USER_MODEL = 'siteuser.User'
+INSTALLED_APPS.append('privacy')
+INSTALLED_APPS.append('contactpage')
+INSTALLED_APPS.append('sitepage')
+CRISPY_TEMPLATE_PACK = 'bootstrap5'
+CRISPY_ALLOWED_TEMPLATE_PACKS = 'bootstrap5'

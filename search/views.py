@@ -1,36 +1,46 @@
-from django.views.generic import ListView
-from django.db.models import Q
-from .forms import SearchForm
-from .utils import get_search_models
+from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
+from django.template.response import TemplateResponse
 
-class SearchView(ListView):
-    template_name = 'your_app/search_results.html'
-    context_object_name = 'results'
-    paginate_by = 10
+from wagtail.models import Page
 
-    def get_queryset(self):
-        form = SearchForm(self.request.GET)
-        query = None
-        results = []
+# To enable logging of search queries for use with the "Promoted search results" module
+# <https://docs.wagtail.org/en/stable/reference/contrib/searchpromotions.html>
+# uncomment the following line and the lines indicated in the search function
+# (after adding wagtail.contrib.search_promotions to INSTALLED_APPS):
 
-        if form.is_valid():
-            query = form.cleaned_data['query']
-            search_models = get_search_models()
+# from wagtail.contrib.search_promotions.models import Query
 
-            for model in search_models:
-                fields = [f.name for f in model._meta.fields if isinstance(f, (models.CharField, models.TextField))]
-                queries = [Q(**{f"{field}__icontains": query}) for field in fields]
-                model_results = model.objects.filter(queries.pop())
 
-                for item in queries:
-                    model_results = model_results.filter(item)
+def search(request):
+    search_query = request.GET.get("query", None)
+    page = request.GET.get("page", 1)
 
-                results.extend(model_results)
+    # Search
+    if search_query:
+        search_results = Page.objects.live().search(search_query)
 
-        return results
+        # To log this query for use with the "Promoted search results" module:
 
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context['form'] = SearchForm(self.request.GET)
-        context['query'] = self.request.GET.get('query', '')
-        return context
+        # query = Query.get(search_query)
+        # query.add_hit()
+
+    else:
+        search_results = Page.objects.none()
+
+    # Pagination
+    paginator = Paginator(search_results, 10)
+    try:
+        search_results = paginator.page(page)
+    except PageNotAnInteger:
+        search_results = paginator.page(1)
+    except EmptyPage:
+        search_results = paginator.page(paginator.num_pages)
+
+    return TemplateResponse(
+        request,
+        "search/search.html",
+        {
+            "search_query": search_query,
+            "search_results": search_results,
+        },
+    )

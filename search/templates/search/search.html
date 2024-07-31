@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load static wagtailcore_tags %}
 {% block body_class %}template-searchresults{% endblock %}
 {% block title %}Search{% endblock %}
 {% block content %}
@@ -15,7 +16,7 @@
                 <li>
                     <h4>
                         <a href="{% pageurl result %}">{{ result }}</a>
-                    </h4>
+                    </h4> 
                     {% if result.search_description %}{{ result.search_description }}{% endif %}
                 </li>
             {% endfor %}
@@ -28,7 +29,7 @@
         {% endif %}
     {% elif search_query %}
         No results found
-	{% else %}
-		No results found. Try a <a href="?query=test">test query</a>?
+    {% else %}
+        No results found. Try a <a href="?query=test">test query</a>?
     {% endif %}
 {% endblock %}
