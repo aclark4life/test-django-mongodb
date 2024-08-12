@@ -9,7 +9,6 @@
 # --------------------------------------------------------------------------------
 #
 .DEFAULT_GOAL := git-commit-push
-CUSTOM_MAKEFILE_NAME := project.mk
 DATABASE_AWK = awk -F\= '{print $$2}'
 DATABASE_HOST = $(shell $(GET_DATABASE_URL) | $(DATABASE_AWK) |\
     python -c 'import dj_database_url; url = input(); url = dj_database_url.parse(url); print(url["HOST"])')
@@ -19,12 +18,14 @@ DATABASE_PASS = $(shell $(GET_DATABASE_URL) | $(DATABASE_AWK) |\
     python -c 'import dj_database_url; url = input(); url = dj_database_url.parse(url); print(url["PASSWORD"])')
 DATABASE_USER = $(shell $(GET_DATABASE_URL) | $(DATABASE_AWK) |\
     python -c 'import dj_database_url; url = input(); url = dj_database_url.parse(url); print(url["USER"])')
+DJANGO_BACKEND_APPS_FILE := backend/apps.py
+DJANGO_CUSTOM_ADMIN_FILE := backend/admin.py
+DJANGO_FRONTEND_FILES = frontend .babelrc .browserslistrc .eslintrc .nvmrc .stylelintrc.json package-lock.json package.json postcss.config.js
 DJANGO_SETTINGS_DIR = backend/settings
-DJANGO_SETTINGS_FILE_BASE = $(DJANGO_SETTINGS_DIR)/base.py
-DJANGO_SETTINGS_FILE_DEV = $(DJANGO_SETTINGS_DIR)/dev.py
-DJANGO_SETTINGS_FILE_PROD = $(DJANGO_SETTINGS_DIR)/production.py
+DJANGO_SETTINGS_BASE_FILE = $(DJANGO_SETTINGS_DIR)/base.py
+DJANGO_SETTINGS_DEV_FILE = $(DJANGO_SETTINGS_DIR)/dev.py
+DJANGO_SETTINGS_PROD_FILE = $(DJANGO_SETTINGS_DIR)/production.py
 ENV_NAME ?= $(PROJECT_NAME)-$(GIT_BRANCH)-$(GIT_REV)
-FRONTEND_FILES = home frontend .babelrc .browserslistrc .eslintrc .nvmrc .stylelintrc.json package-lock.json package.json postcss.config.js
 GET_DATABASE_URL = eb ssh -c "source /opt/elasticbeanstalk/deployment/custom_env_var;\
     env | grep DATABASE_URL"
 GIT_BRANCH = $(shell git branch --show-current)
@@ -39,6 +40,7 @@ INSTANCE_MIN ?= 1
 INSTANCE_PROFILE ?= aws-elasticbeanstalk-ec2-role
 INSTANCE_TYPE ?= t4g.small
 LB_TYPE ?= application
+MAKEFILE_CUSTOM_FILE := project.mk
 PACKAGE_NAME = $(shell echo $(PROJECT_NAME) | sed 's/-/_/g')
 PAGER ?= less
 PLATFORM ?= "Python 3.11 running on 64bit Amazon Linux 2023"
@@ -53,8 +55,8 @@ UNAME := $(shell uname)
 WAGTAIL_CLEAN_DIRS = home search backend sitepage siteuser privacy frontend contactpage model_form_demo logging_demo payments node_modules
 WAGTAIL_CLEAN_FILES = README.rst README.md .dockerignore Dockerfile manage.py requirements.txt requirements-test.txt docker-compose.yml .babelrc .browserslistrc .eslintrc .gitignore .nvmrc .stylelintrc.json package-lock.json package.json postcss.config.js
 
-ifneq ($(wildcard $(CUSTOM_MAKEFILE_NAME)),)
-    include $(CUSTOM_MAKEFILE_NAME)
+ifneq ($(wildcard $(MAKEFILE_CUSTOM_FILE)),)
+    include $(MAKEFILE_CUSTOM_FILE)
 endif
 
 # --------------------------------------------------------------------------------
@@ -80,13 +82,6 @@ define ALLAUTH_LAYOUT_BASE
 {% extends 'base.html' %}
 endef
 
-define AUTHENTICATION_BACKENDS
-AUTHENTICATION_BACKENDS = [
-    'django.contrib.auth.backends.ModelBackend',
-    'allauth.account.auth_backends.AuthenticationBackend',
-]
-endef
-
 define BABELRC
 {
   "presets": [
@@ -108,64 +103,48 @@ define BABELRC
 }
 endef
 
-define BACKEND_APPS
-from django.contrib.admin.apps import AdminConfig
+define CUSTOM_ENV_VAR_FILE
+#!/bin/bash
 
-class CustomAdminConfig(AdminConfig):
-    default_site = "backend.admin.CustomAdminSite"
+# Via https://aws.amazon.com/premiumsupport/knowledge-center/elastic-beanstalk-env-variables-linux2/
+
+#Create a copy of the environment variable file.
+cat /opt/elasticbeanstalk/deployment/env | perl -p -e 's/(.*)=(.*)/export $$1="$$2"/;' > /opt/elasticbeanstalk/deployment/custom_env_var
+
+#Set permissions to the custom_env_var file so this file can be accessed by any user on the instance. You can restrict permissions as per your requirements.
+chmod 644 /opt/elasticbeanstalk/deployment/custom_env_var
+
+# add the virtual env path in.
+VENV=/var/app/venv/`ls /var/app/venv`
+cat <<EOF >> /opt/elasticbeanstalk/deployment/custom_env_var
+VENV=$$ENV
+EOF
+
+#Remove duplicate files upon deployment.
+rm -f /opt/elasticbeanstalk/deployment/*.bak
 endef
 
-define BLOCK_CAROUSEL
-        <div id="carouselExampleCaptions" class="carousel slide">
-            <div class="carousel-indicators">
-                {% for image in block.value.images %}
-                    <button type="button"
-                            data-bs-target="#carouselExampleCaptions"
-                            data-bs-slide-to="{{ forloop.counter0 }}"
-                            {% if forloop.first %}class="active" aria-current="true"{% endif %}
-                            aria-label="Slide {{ forloop.counter }}"></button>
-                {% endfor %}
-            </div>
-            <div class="carousel-inner">
-                {% for image in block.value.images %}
-                    <div class="carousel-item {% if forloop.first %}active{% endif %}">
-                        <img src="{{ image.file.url }}" class="d-block w-100" alt="...">
-                        <div class="carousel-caption d-none d-md-block">
-                            <h5>{{ image.title }}</h5>
-                        </div>
-                    </div>
-                {% endfor %}
-            </div>
-            <button class="carousel-control-prev"
-                    type="button"
-                    data-bs-target="#carouselExampleCaptions"
-                    data-bs-slide="prev">
-                <span class="carousel-control-prev-icon" aria-hidden="true"></span>
-                <span class="visually-hidden">Previous</span>
-            </button>
-            <button class="carousel-control-next"
-                    type="button"
-                    data-bs-target="#carouselExampleCaptions"
-                    data-bs-slide="next">
-                <span class="carousel-control-next-icon" aria-hidden="true"></span>
-                <span class="visually-hidden">Next</span>
-            </button>
-        </div>
+define CUSTOM_ENV_EC2_USER
+files:
+    "/home/ec2-user/.bashrc":
+        mode: "000644"
+        owner: ec2-user
+        group: ec2-user
+        content: |
+            # .bashrc
+
+            # Source global definitions
+            if [ -f /etc/bashrc ]; then
+                    . /etc/bashrc
+            fi
+
+            # User specific aliases and functions
+            set -o vi
+
+            source <(sed -E -n 's/[^#]+/export &/ p' /opt/elasticbeanstalk/deployment/custom_env_var)
 endef
 
-define BLOCK_MARKETING
-{% load wagtailcore_tags %}
-<div class="{{ self.block_class }}">
-    {% if block.value.images.0 %}
-        {% include 'blocks/carousel_block.html' %}
-    {% else %}
-        {{ self.title }}
-        {{ self.content }}
-    {% endif %}
-</div>
-endef
-
-define COMPONENT_CLOCK
+define DJANGO_FRONTEND_COMPONENT_CLOCK
 // Via ChatGPT
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import PropTypes from 'prop-types';
@@ -213,7 +192,7 @@ Clock.propTypes = {
 export default Clock;
 endef
 
-define COMPONENT_ERROR
+define DJANGO_FRONTEND_COMPONENT_ERROR
 import { Component } from 'react';
 import PropTypes from 'prop-types';
 
@@ -249,7 +228,7 @@ ErrorBoundary.propTypes = {
 export default ErrorBoundary;
 endef
 
-define COMPONENT_USER_MENU
+define DJANGO_FRONTEND_COMPONENT_USER_MENU
 // UserMenu.js
 import React from 'react';
 import PropTypes from 'prop-types';
@@ -302,133 +281,21 @@ UserMenu.propTypes = {
 export default UserMenu;
 endef
 
-
-define CONTACT_PAGE_TEMPLATE
-{% extends 'base.html' %}
-{% load crispy_forms_tags static wagtailcore_tags %}
-{% block content %}
-        <h1>{{ page.title }}</h1>
-        {{ page.intro|richtext }}
-        <form action="{% pageurl page %}" method="POST">
-            {% csrf_token %}
-            {{ form.as_p }}
-            <input type="submit">
-        </form>
-{% endblock %}
+define DJANGO_AUTHENTICATION_BACKENDS
+AUTHENTICATION_BACKENDS = [
+    'django.contrib.auth.backends.ModelBackend',
+    'allauth.account.auth_backends.AuthenticationBackend',
+]
 endef
 
-define CONTACT_PAGE_TEST
-from django.test import TestCase
-from wagtail.test.utils import WagtailPageTestCase
-from wagtail.models import Page
+define DJANGO_BACKEND_APPS
+from django.contrib.admin.apps import AdminConfig
 
-from contactpage.models import ContactPage, FormField
-
-class ContactPageTest(TestCase, WagtailPageTestCase):
-    def test_contact_page_creation(self):
-        # Create a ContactPage instance
-        contact_page = ContactPage(
-            title='Contact',
-            intro='Welcome to our contact page!',
-            thank_you_text='Thank you for reaching out.'
-        )
-
-        # Save the ContactPage instance
-        self.assertEqual(contact_page.save_revision().publish().get_latest_revision_as_page(), contact_page)
-
-    def test_form_field_creation(self):
-        # Create a ContactPage instance
-        contact_page = ContactPage(
-            title='Contact',
-            intro='Welcome to our contact page!',
-            thank_you_text='Thank you for reaching out.'
-        )
-        # Save the ContactPage instance
-        contact_page_revision = contact_page.save_revision()
-        contact_page_revision.publish()
-
-        # Create a FormField associated with the ContactPage
-        form_field = FormField(
-            page=contact_page,
-            label='Your Name',
-            field_type='singleline',
-            required=True
-        )
-        form_field.save()
-
-        # Retrieve the ContactPage from the database
-        contact_page_from_db = Page.objects.get(id=contact_page.id).specific
-
-        # Check if the FormField is associated with the ContactPage
-        self.assertEqual(contact_page_from_db.form_fields.first(), form_field)
-
-    def test_contact_page_form_submission(self):
-        # Create a ContactPage instance
-        contact_page = ContactPage(
-            title='Contact',
-            intro='Welcome to our contact page!',
-            thank_you_text='Thank you for reaching out.'
-        )
-        # Save the ContactPage instance
-        contact_page_revision = contact_page.save_revision()
-        contact_page_revision.publish()
-
-        # Simulate a form submission
-        form_data = {
-            'your_name': 'John Doe',
-            # Add other form fields as needed
-        }
-
-        response = self.client.post(contact_page.url, form_data)
-
-        # Check if the form submission is successful (assuming a 302 redirect)
-        self.assertEqual(response.status_code, 302)
-        
-        # You may add more assertions based on your specific requirements
+class CustomAdminConfig(AdminConfig):
+    default_site = "backend.admin.CustomAdminSite"
 endef
 
-define CONTACT_PAGE_MODEL
-from django.db import models
-from modelcluster.fields import ParentalKey
-from wagtail.admin.panels import (
-    FieldPanel, FieldRowPanel,
-    InlinePanel, MultiFieldPanel
-)
-from wagtail.fields import RichTextField
-from wagtail.contrib.forms.models import AbstractEmailForm, AbstractFormField
-
-
-class FormField(AbstractFormField):
-    page = ParentalKey('ContactPage', on_delete=models.CASCADE, related_name='form_fields')
-
-
-class ContactPage(AbstractEmailForm):
-    intro = RichTextField(blank=True)
-    thank_you_text = RichTextField(blank=True)
-
-    content_panels = AbstractEmailForm.content_panels + [
-        FieldPanel('intro'),
-        InlinePanel('form_fields', label="Form fields"),
-        FieldPanel('thank_you_text'),
-        MultiFieldPanel([
-            FieldRowPanel([
-                FieldPanel('from_address', classname="col6"),
-                FieldPanel('to_address', classname="col6"),
-            ]),
-            FieldPanel('subject'),
-        ], "Email"),
-    ]
-
-    class Meta:
-        verbose_name = "Contact Page"
-endef
-
-define CONTACT_PAGE_LANDING
-{% extends 'base.html' %}
-{% block content %}<div class="container"><h1>Thank you!</h1></div>{% endblock %}
-endef
-
-define CUSTOM_ADMIN
+define DJANGO_CUSTOM_ADMIN
 # admin.py
 from django.contrib.admin import AdminSite
 
@@ -438,54 +305,6 @@ class CustomAdminSite(AdminSite):
     index_title = 'Project Makefile'
 
 custom_admin_site = CustomAdminSite(name='custom_admin')
-endef
-
-define CUSTOM_ENV_EC2_USER
-files:
-    "/home/ec2-user/.bashrc":
-        mode: "000644"
-        owner: ec2-user
-        group: ec2-user
-        content: |
-            # .bashrc
-
-            # Source global definitions
-            if [ -f /etc/bashrc ]; then
-                    . /etc/bashrc
-            fi
-
-            # User specific aliases and functions
-            set -o vi
-
-            source <(sed -E -n 's/[^#]+/export &/ p' /opt/elasticbeanstalk/deployment/custom_env_var)
-endef
-
-define CUSTOM_ENV_VAR_FILE
-#!/bin/bash
-
-# Via https://aws.amazon.com/premiumsupport/knowledge-center/elastic-beanstalk-env-variables-linux2/
-
-#Create a copy of the environment variable file.
-cat /opt/elasticbeanstalk/deployment/env | perl -p -e 's/(.*)=(.*)/export $$1="$$2"/;' > /opt/elasticbeanstalk/deployment/custom_env_var
-
-#Set permissions to the custom_env_var file so this file can be accessed by any user on the instance. You can restrict permissions as per your requirements.
-chmod 644 /opt/elasticbeanstalk/deployment/custom_env_var
-
-# add the virtual env path in.
-VENV=/var/app/venv/`ls /var/app/venv`
-cat <<EOF >> /opt/elasticbeanstalk/deployment/custom_env_var
-VENV=$$ENV
-EOF
-
-#Remove duplicate files upon deployment.
-rm -f /opt/elasticbeanstalk/deployment/*.bak
-endef
-
-define CUSTOM_MAKEFILE
-# Custom Makefile
-# Add your custom makefile commands here
-#
-# PROJECT_NAME := my-new-project
 endef
 
 define DJANGO_HOME_PAGE_VIEWS
@@ -510,6 +329,190 @@ define DJANGO_HOME_PAGE_TEMPLATE
     <main class="{% block main_class %}{% endblock %}">
     </main>
 {% endblock %}
+endef
+
+define DJANGO_FRONTEND_APP_CONFIG
+import '../utils/themeToggler.js';
+// import '../utils/tinymce.js';
+endef
+
+define DJANGO_FRONTEND_PORTAL
+// Via pwellever
+import React from 'react';
+import { createPortal } from 'react-dom';
+
+const parseProps = data => Object.entries(data).reduce((result, [key, value]) => {
+  if (value.toLowerCase() === 'true') {
+    value = true;
+  } else if (value.toLowerCase() === 'false') {
+    value = false;
+  } else if (value.toLowerCase() === 'null') {
+    value = null;
+  } else if (!isNaN(parseFloat(value)) && isFinite(value)) {
+    // Parse numeric value
+    value = parseFloat(value);
+  } else if (
+    (value[0] === '[' && value.slice(-1) === ']') || (value[0] === '{' && value.slice(-1) === '}')
+  ) {
+    // Parse JSON strings
+    value = JSON.parse(value);
+  }
+
+  result[key] = value;
+  return result;
+}, {});
+
+// This method of using portals instead of calling ReactDOM.render on individual components
+// ensures that all components are mounted under a single React tree, and are therefore able
+// to share context.
+
+export default function getPageComponents (components) {
+  const getPortalComponent = domEl => {
+    // The element's "data-component" attribute is used to determine which component to render.
+    // All other "data-*" attributes are passed as props.
+    const { component: componentName, ...rest } = domEl.dataset;
+    const Component = components[componentName];
+    if (!Component) {
+      console.error(`Component "$${componentName}" not found.`);
+      return null;
+    }
+    const props = parseProps(rest);
+    domEl.innerHTML = '';
+
+    // eslint-disable-next-line no-unused-vars
+    const { ErrorBoundary } = components;
+    return createPortal(
+      <ErrorBoundary>
+        <Component {...props} />
+      </ErrorBoundary>,
+      domEl,
+    );
+  };
+
+  return Array.from(document.querySelectorAll('[data-component]')).map(getPortalComponent);
+}
+endef
+
+define DJANGO_FRONTEND_COMPONENTS
+export { default as ErrorBoundary } from './ErrorBoundary';
+export { default as UserMenu } from './UserMenu';
+endef
+
+define DJANGO_FRONTEND_CONTEXT_INDEX
+export { UserContextProvider as default } from './UserContextProvider';
+endef
+
+define DJANGO_FRONTEND_CONTEXT_USER_PROVIDER
+// UserContextProvider.js
+import React, { createContext, useContext, useState } from 'react';
+import PropTypes from 'prop-types';
+
+const UserContext = createContext();
+
+export const UserContextProvider = ({ children }) => {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+  const login = () => {
+    try {
+      // Add logic to handle login, set isAuthenticated to true
+      setIsAuthenticated(true);
+    } catch (error) {
+      console.error('Login error:', error);
+      // Handle error, e.g., show an error message to the user
+    }
+  };
+
+  const logout = () => {
+    try {
+      // Add logic to handle logout, set isAuthenticated to false
+      setIsAuthenticated(false);
+    } catch (error) {
+      console.error('Logout error:', error);
+      // Handle error, e.g., show an error message to the user
+    }
+  };
+
+  return (
+    <UserContext.Provider value={{ isAuthenticated, login, logout }}>
+      {children}
+    </UserContext.Provider>
+  );
+};
+
+UserContextProvider.propTypes = {
+  children: PropTypes.node.isRequired,
+};
+
+export const useUserContext = () => {
+  const context = useContext(UserContext);
+
+  if (!context) {
+    throw new Error('useUserContext must be used within a UserContextProvider');
+  }
+
+  return context;
+};
+
+// Add PropTypes for the return value of useUserContext
+useUserContext.propTypes = {
+  isAuthenticated: PropTypes.bool.isRequired,
+  login: PropTypes.func.isRequired,
+  logout: PropTypes.func.isRequired,
+};
+endef
+
+define DJANGO_FRONTEND_STYLES
+// If you comment out code below, bootstrap will use red as primary color
+// and btn-primary will become red
+
+// $primary: red;
+
+@import "~bootstrap/scss/bootstrap.scss";
+
+.jumbotron {
+  // should be relative path of the entry scss file
+  background-image: url("../../vendors/images/sample.jpg");
+  background-size: cover;
+}
+
+#theme-toggler-authenticated:hover {
+    cursor: pointer; /* Change cursor to pointer on hover */
+    color: #007bff; /* Change color on hover */
+}
+
+#theme-toggler-anonymous:hover {
+    cursor: pointer; /* Change cursor to pointer on hover */
+    color: #007bff; /* Change color on hover */
+}
+endef
+
+define DJANGO_FRONTEND_APP
+import React from 'react';
+import { createRoot } from 'react-dom/client';
+import 'bootstrap';
+import '@fortawesome/fontawesome-free/js/fontawesome';
+import '@fortawesome/fontawesome-free/js/solid';
+import '@fortawesome/fontawesome-free/js/regular';
+import '@fortawesome/fontawesome-free/js/brands';
+import getDataComponents from '../dataComponents';
+import UserContextProvider from '../context';
+import * as components from '../components';
+import "../styles/index.scss";
+import "../styles/theme-blue.scss";
+import "./config";
+
+const { ErrorBoundary } = components;
+const dataComponents = getDataComponents(components);
+const container = document.getElementById('app');
+const root = createRoot(container);
+const App = () => (
+    <ErrorBoundary>
+      <UserContextProvider>
+        {dataComponents}
+      </UserContextProvider>
+    </ErrorBoundary>
+);
+root.render(<App />);
 endef
 
 define DJANGO_HTML_OFFCANVAS
@@ -689,6 +692,132 @@ define DJANGO_FOOTER
   </footer>
 endef
 
+define DJANGO_MODEL_FORM_DEMO_MODEL
+from django.db import models
+from django.shortcuts import reverse
+
+class ModelFormDemo(models.Model):
+    name = models.CharField(max_length=100, blank=True, null=True)
+    email = models.EmailField(blank=True, null=True)
+    age = models.IntegerField(blank=True, null=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.name or f"test-model-{self.pk}"
+
+    def get_absolute_url(self):
+        return reverse('model_form_demo_detail', kwargs={'pk': self.pk})
+endef
+
+define DJANGO_MODEL_FORM_DEMO_ADMIN
+from django.contrib import admin
+from .models import ModelFormDemo
+
+@admin.register(ModelFormDemo)
+class ModelFormDemoAdmin(admin.ModelAdmin):
+    pass
+endef
+
+define DJANGO_MODEL_FORM_DEMO_VIEWS
+from django.views.generic import ListView, CreateView, UpdateView, DetailView
+from .models import ModelFormDemo
+from .forms import ModelFormDemoForm
+
+
+class ModelFormDemoListView(ListView):
+    model = ModelFormDemo
+    template_name = "model_form_demo_list.html"
+    context_object_name = "model_form_demos"
+
+
+class ModelFormDemoCreateView(CreateView):
+    model = ModelFormDemo
+    form_class = ModelFormDemoForm
+    template_name = "model_form_demo_form.html"
+
+    def form_valid(self, form):
+        form.instance.created_by = self.request.user
+        return super().form_valid(form)
+
+
+class ModelFormDemoUpdateView(UpdateView):
+    model = ModelFormDemo
+    form_class = ModelFormDemoForm
+    template_name = "model_form_demo_form.html"
+
+
+class ModelFormDemoDetailView(DetailView):
+    model = ModelFormDemo
+    template_name = "model_form_demo_detail.html"
+    context_object_name = "model_form_demo"
+endef
+
+define DJANGO_MODEL_FORM_DEMO_FORMS
+from django import forms
+from .models import ModelFormDemo
+
+class ModelFormDemoForm(forms.ModelForm):
+    class Meta:
+        model = ModelFormDemo
+        fields = ['name', 'email', 'age', 'is_active']  # Add or remove fields as needed
+endef
+
+define DJANGO_MODEL_FORM_DEMO_TEMPLATE_FORM
+{% extends 'base.html' %}
+{% block content %}
+    <h1>{% if form.instance.pk %}Update Test Model{% else %}Create Test Model{% endif %}</h1>
+    <form method="post">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button type="submit">Save</button>
+    </form>
+{% endblock %}
+endef
+
+define DJANGO_MODEL_FORM_DEMO_TEMPLATE_DETAIL
+{% extends 'base.html' %}
+{% block content %}
+    <h1>Test Model Detail: {{ model_form_demo.name }}</h1>
+    <p>Name: {{ model_form_demo.name }}</p>
+    <p>Email: {{ model_form_demo.email }}</p>
+    <p>Age: {{ model_form_demo.age }}</p>
+    <p>Active: {{ model_form_demo.is_active }}</p>
+    <p>Created At: {{ model_form_demo.created_at }}</p>
+    <a href="{% url 'model_form_demo_update' model_form_demo.pk %}">Edit Test Model</a>
+{% endblock %}
+endef
+
+define DJANGO_MODEL_FORM_DEMO_TEMPLATE_LIST
+{% extends 'base.html' %}
+{% block content %}
+    <h1>Test Models List</h1>
+    <ul>
+        {% for model_form_demo in model_form_demos %}
+            <li><a href="{% url 'model_form_demo_detail' model_form_demo.pk %}">{{ model_form_demo.name }}</a></li>
+        {% endfor %}
+    </ul>
+    <a href="{% url 'model_form_demo_create' %}">Create New Test Model</a>
+{% endblock %}
+endef
+
+define DJANGO_MODEL_FORM_DEMO_URLS
+from django.urls import path
+from .views import (
+    ModelFormDemoListView,
+    ModelFormDemoCreateView,
+    ModelFormDemoUpdateView,
+    ModelFormDemoDetailView,
+)
+
+urlpatterns = [
+    path('', ModelFormDemoListView.as_view(), name='model_form_demo_list'),
+    path('create/', ModelFormDemoCreateView.as_view(), name='model_form_demo_create'),
+    path('<int:pk>/update/', ModelFormDemoUpdateView.as_view(), name='model_form_demo_update'),
+    path('<int:pk>/', ModelFormDemoDetailView.as_view(), name='model_form_demo_detail'),
+]
+endef
+
 define DJANGO_REST_SERIALIZERS
 from rest_framework import serializers
 from siteuser.models import User
@@ -849,6 +978,14 @@ try:
     from .local import *  # noqa
 except ImportError:
     pass
+
+LOG_LEVEL = os.environ.get("LOG_LEVEL", "DEBUG")                                  
+LOGGING = {                                                            
+    "version": 1,                                                             
+    "disable_existing_loggers": False,                                    
+    "handlers": {"console": {"class": "logging.StreamHandler"}},    
+    "root": {"handlers": ["console"], "level": "WARNING"},     
+}
 endef
 
 define DJANGO_SETTINGS_PROD
@@ -901,6 +1038,138 @@ if __name__ == "__main__":
     main()
 endef
 
+define DJANGO_SITEUSER_ADMIN
+from django.contrib.auth.admin import UserAdmin
+from django.contrib import admin
+
+from .models import User
+
+admin.site.register(User, UserAdmin)
+endef
+
+define DJANGO_SITEUSER_EDIT_TEMPLATE
+{% extends 'base.html' %}
+
+{% block content %}
+  <h2>Edit User</h2>
+  <form method="post">
+    {% csrf_token %}
+    {{ form }}
+    <div class="d-flex">
+      <button type="submit">Save changes</button>
+      <a class="text-decoration-none" href="/user/profile">Cancel</a>
+    </div>
+  </form>
+{% endblock %}
+endef
+
+define DJANGO_SITEUSER_FORM
+from django import forms
+from django.contrib.auth.forms import UserChangeForm
+from .models import User
+
+class SiteUserForm(UserChangeForm):
+    class Meta(UserChangeForm.Meta):
+        model = User
+        fields = ("username", "user_theme_preference", "bio", "rate")
+
+    bio = forms.CharField(widget=forms.Textarea(attrs={"id": "editor"}), required=False)
+endef
+
+define DJANGO_SITEUSER_MODEL
+from django.db import models
+from django.contrib.auth.models import AbstractUser, Group, Permission
+from django.conf import settings
+
+class User(AbstractUser):
+    groups = models.ManyToManyField(Group, related_name='siteuser_set', blank=True)
+    user_permissions = models.ManyToManyField(
+        Permission, related_name='siteuser_set', blank=True
+    )
+    
+    user_theme_preference = models.CharField(max_length=10, choices=settings.THEMES, default='light')
+    
+    bio = models.TextField(blank=True, null=True)
+    rate = models.FloatField(blank=True, null=True)
+endef
+
+define DJANGO_SITEUSER_URLS
+from django.urls import path
+from .views import UserProfileView, UpdateThemePreferenceView, UserEditView
+
+urlpatterns = [
+    path('profile/', UserProfileView.as_view(), name='user-profile'),
+    path('update_theme_preference/', UpdateThemePreferenceView.as_view(), name='update_theme_preference'),
+    path('<int:pk>/edit/', UserEditView.as_view(), name='user-edit'),
+]
+endef
+
+define DJANGO_SITEUSER_VIEW_TEMPLATE
+{% extends 'base.html' %}
+
+{% block content %}
+<h2>User Profile</h2>
+<div class="d-flex justify-content-end">
+    <a class="btn btn-outline-secondary" href="{% url 'user-edit' pk=user.id %}">Edit</a>
+</div>
+<p>Username: {{ user.username }}</p>
+<p>Theme: {{ user.user_theme_preference }}</p>
+<p>Bio: {{ user.bio|default:""|safe }}</p>
+<p>Rate: {{ user.rate|default:"" }}</p>
+{% endblock %}
+endef
+
+define DJANGO_SITEUSER_VIEW
+import json
+
+from django.contrib.auth.mixins import LoginRequiredMixin
+from django.http import JsonResponse
+from django.utils.decorators import method_decorator
+from django.views import View
+from django.views.decorators.csrf import csrf_exempt
+from django.views.generic import DetailView
+from django.views.generic.edit import UpdateView
+from django.urls import reverse_lazy
+
+from .models import User
+from .forms import SiteUserForm
+
+
+class UserProfileView(LoginRequiredMixin, DetailView):
+    model = User
+    template_name = "profile.html"
+
+    def get_object(self, queryset=None):
+        return self.request.user
+
+
+@method_decorator(csrf_exempt, name="dispatch")
+class UpdateThemePreferenceView(View):
+    def post(self, request, *args, **kwargs):
+        try:
+            data = json.loads(request.body.decode("utf-8"))
+            new_theme = data.get("theme")
+            user = request.user
+            user.user_theme_preference = new_theme
+            user.save()
+            response_data = {"theme": new_theme}
+            return JsonResponse(response_data)
+        except json.JSONDecodeError as e:
+            return JsonResponse({"error": e}, status=400)
+
+    def http_method_not_allowed(self, request, *args, **kwargs):
+        return JsonResponse({"error": "Invalid request method"}, status=405)
+
+
+class UserEditView(LoginRequiredMixin, UpdateView):
+    model = User
+    template_name = 'user_edit.html'  # Create this template in your templates folder
+    form_class = SiteUserForm
+
+    def get_success_url(self):
+        # return reverse_lazy('user-profile', kwargs={'pk': self.object.pk})
+        return reverse_lazy('user-profile')
+endef
 define DJANGO_URLS
 from django.contrib import admin
 from django.urls import path, include
@@ -913,7 +1182,7 @@ endef
 
 define DJANGO_URLS_API
 from rest_framework import routers  # noqa
-from .api import UserViewSet, api
+from .api import UserViewSet, api  # noqa
 
 router = routers.DefaultRouter()
 router.register(r'users', UserViewSet)
@@ -1051,190 +1320,6 @@ define FAVICON_TEMPLATE
 <link href="{% static 'wagtailadmin/images/favicon.ico' %}" rel="icon">
 endef
 
-define FRONTEND_APP_CONFIG
-import '../utils/themeToggler.js';
-// import '../utils/tinymce.js';
-endef
-
-define FRONTEND_PORTAL
-// Via pwellever
-import React from 'react';
-import { createPortal } from 'react-dom';
-
-const parseProps = data => Object.entries(data).reduce((result, [key, value]) => {
-  if (value.toLowerCase() === 'true') {
-    value = true;
-  } else if (value.toLowerCase() === 'false') {
-    value = false;
-  } else if (value.toLowerCase() === 'null') {
-    value = null;
-  } else if (!isNaN(parseFloat(value)) && isFinite(value)) {
-    // Parse numeric value
-    value = parseFloat(value);
-  } else if (
-    (value[0] === '[' && value.slice(-1) === ']') || (value[0] === '{' && value.slice(-1) === '}')
-  ) {
-    // Parse JSON strings
-    value = JSON.parse(value);
-  }
-
-  result[key] = value;
-  return result;
-}, {});
-
-// This method of using portals instead of calling ReactDOM.render on individual components
-// ensures that all components are mounted under a single React tree, and are therefore able
-// to share context.
-
-export default function getPageComponents (components) {
-  const getPortalComponent = domEl => {
-    // The element's "data-component" attribute is used to determine which component to render.
-    // All other "data-*" attributes are passed as props.
-    const { component: componentName, ...rest } = domEl.dataset;
-    const Component = components[componentName];
-    if (!Component) {
-      console.error(`Component "$${componentName}" not found.`);
-      return null;
-    }
-    const props = parseProps(rest);
-    domEl.innerHTML = '';
-
-    // eslint-disable-next-line no-unused-vars
-    const { ErrorBoundary } = components;
-    return createPortal(
-      <ErrorBoundary>
-        <Component {...props} />
-      </ErrorBoundary>,
-      domEl,
-    );
-  };
-
-  return Array.from(document.querySelectorAll('[data-component]')).map(getPortalComponent);
-}
-endef
-
-define FRONTEND_COMPONENTS
-export { default as ErrorBoundary } from './ErrorBoundary';
-export { default as UserMenu } from './UserMenu';
-endef
-
-define FRONTEND_CONTEXT_INDEX
-export { UserContextProvider as default } from './UserContextProvider';
-endef
-
-define FRONTEND_CONTEXT_USER_PROVIDER
-// UserContextProvider.js
-import React, { createContext, useContext, useState } from 'react';
-import PropTypes from 'prop-types';
-
-const UserContext = createContext();
-
-export const UserContextProvider = ({ children }) => {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-
-  const login = () => {
-    try {
-      // Add logic to handle login, set isAuthenticated to true
-      setIsAuthenticated(true);
-    } catch (error) {
-      console.error('Login error:', error);
-      // Handle error, e.g., show an error message to the user
-    }
-  };
-
-  const logout = () => {
-    try {
-      // Add logic to handle logout, set isAuthenticated to false
-      setIsAuthenticated(false);
-    } catch (error) {
-      console.error('Logout error:', error);
-      // Handle error, e.g., show an error message to the user
-    }
-  };
-
-  return (
-    <UserContext.Provider value={{ isAuthenticated, login, logout }}>
-      {children}
-    </UserContext.Provider>
-  );
-};
-
-UserContextProvider.propTypes = {
-  children: PropTypes.node.isRequired,
-};
-
-export const useUserContext = () => {
-  const context = useContext(UserContext);
-
-  if (!context) {
-    throw new Error('useUserContext must be used within a UserContextProvider');
-  }
-
-  return context;
-};
-
-// Add PropTypes for the return value of useUserContext
-useUserContext.propTypes = {
-  isAuthenticated: PropTypes.bool.isRequired,
-  login: PropTypes.func.isRequired,
-  logout: PropTypes.func.isRequired,
-};
-endef
-
-define FRONTEND_STYLES
-// If you comment out code below, bootstrap will use red as primary color
-// and btn-primary will become red
-
-// $primary: red;
-
-@import "~bootstrap/scss/bootstrap.scss";
-
-.jumbotron {
-  // should be relative path of the entry scss file
-  background-image: url("../../vendors/images/sample.jpg");
-  background-size: cover;
-}
-
-#theme-toggler-authenticated:hover {
-    cursor: pointer; /* Change cursor to pointer on hover */
-    color: #007bff; /* Change color on hover */
-}
-
-#theme-toggler-anonymous:hover {
-    cursor: pointer; /* Change cursor to pointer on hover */
-    color: #007bff; /* Change color on hover */
-}
-endef
-
-define FRONTEND_APP
-import React from 'react';
-import { createRoot } from 'react-dom/client';
-import 'bootstrap';
-import '@fortawesome/fontawesome-free/js/fontawesome';
-import '@fortawesome/fontawesome-free/js/solid';
-import '@fortawesome/fontawesome-free/js/regular';
-import '@fortawesome/fontawesome-free/js/brands';
-import getDataComponents from '../dataComponents';
-import UserContextProvider from '../context';
-import * as components from '../components';
-import "../styles/index.scss";
-import "../styles/theme-blue.scss";
-import "./config";
-
-const { ErrorBoundary } = components;
-const dataComponents = getDataComponents(components);
-const container = document.getElementById('app');
-const root = createRoot(container);
-const App = () => (
-    <ErrorBoundary>
-      <UserContextProvider>
-        {dataComponents}
-      </UserContextProvider>
-    </ErrorBoundary>
-);
-root.render(<App />);
-endef
-
 define GIT_IGNORE
 __pycache__
 *.pyc
@@ -1308,130 +1393,11 @@ LOGGING = {
 }
 endef
 
-define MODEL_FORM_DEMO_MODEL
-from django.db import models
-from django.shortcuts import reverse
-
-class ModelFormDemo(models.Model):
-    name = models.CharField(max_length=100, blank=True, null=True)
-    email = models.EmailField(blank=True, null=True)
-    age = models.IntegerField(blank=True, null=True)
-    is_active = models.BooleanField(default=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    def __str__(self):
-        return self.name or f"test-model-{self.pk}"
-
-    def get_absolute_url(self):
-        return reverse('model_form_demo_detail', kwargs={'pk': self.pk})
-endef
-
-define MODEL_FORM_DEMO_ADMIN
-from django.contrib import admin
-from .models import ModelFormDemo
-
-@admin.register(ModelFormDemo)
-class ModelFormDemoAdmin(admin.ModelAdmin):
-    pass
-endef
-
-define MODEL_FORM_DEMO_VIEWS
-from django.views.generic import ListView, CreateView, UpdateView, DetailView
-from .models import ModelFormDemo
-from .forms import ModelFormDemoForm
-
-
-class ModelFormDemoListView(ListView):
-    model = ModelFormDemo
-    template_name = "model_form_demo_list.html"
-    context_object_name = "model_form_demos"
-
-
-class ModelFormDemoCreateView(CreateView):
-    model = ModelFormDemo
-    form_class = ModelFormDemoForm
-    template_name = "model_form_demo_form.html"
-
-    def form_valid(self, form):
-        form.instance.created_by = self.request.user
-        return super().form_valid(form)
-
-
-class ModelFormDemoUpdateView(UpdateView):
-    model = ModelFormDemo
-    form_class = ModelFormDemoForm
-    template_name = "model_form_demo_form.html"
-
-
-class ModelFormDemoDetailView(DetailView):
-    model = ModelFormDemo
-    template_name = "model_form_demo_detail.html"
-    context_object_name = "model_form_demo"
-endef
-
-define MODEL_FORM_DEMO_FORMS
-from django import forms
-from .models import ModelFormDemo
-
-class ModelFormDemoForm(forms.ModelForm):
-    class Meta:
-        model = ModelFormDemo
-        fields = ['name', 'email', 'age', 'is_active']  # Add or remove fields as needed
-endef
-
-define MODEL_FORM_DEMO_TEMPLATE_FORM
-{% extends 'base.html' %}
-{% block content %}
-    <h1>{% if form.instance.pk %}Update Test Model{% else %}Create Test Model{% endif %}</h1>
-    <form method="post">
-        {% csrf_token %}
-        {{ form.as_p }}
-        <button type="submit">Save</button>
-    </form>
-{% endblock %}
-endef
-
-define MODEL_FORM_DEMO_TEMPLATE_DETAIL
-{% extends 'base.html' %}
-{% block content %}
-    <h1>Test Model Detail: {{ model_form_demo.name }}</h1>
-    <p>Name: {{ model_form_demo.name }}</p>
-    <p>Email: {{ model_form_demo.email }}</p>
-    <p>Age: {{ model_form_demo.age }}</p>
-    <p>Active: {{ model_form_demo.is_active }}</p>
-    <p>Created At: {{ model_form_demo.created_at }}</p>
-    <a href="{% url 'model_form_demo_update' model_form_demo.pk %}">Edit Test Model</a>
-{% endblock %}
-endef
-
-define MODEL_FORM_DEMO_TEMPLATE_LIST
-{% extends 'base.html' %}
-{% block content %}
-    <h1>Test Models List</h1>
-    <ul>
-        {% for model_form_demo in model_form_demos %}
-            <li><a href="{% url 'model_form_demo_detail' model_form_demo.pk %}">{{ model_form_demo.name }}</a></li>
-        {% endfor %}
-    </ul>
-    <a href="{% url 'model_form_demo_create' %}">Create New Test Model</a>
-{% endblock %}
-endef
-
-define MODEL_FORM_DEMO_URLS
-from django.urls import path
-from .views import (
-    ModelFormDemoListView,
-    ModelFormDemoCreateView,
-    ModelFormDemoUpdateView,
-    ModelFormDemoDetailView,
-)
-
-urlpatterns = [
-    path('', ModelFormDemoListView.as_view(), name='model_form_demo_list'),
-    path('create/', ModelFormDemoCreateView.as_view(), name='model_form_demo_create'),
-    path('<int:pk>/update/', ModelFormDemoUpdateView.as_view(), name='model_form_demo_update'),
-    path('<int:pk>/', ModelFormDemoDetailView.as_view(), name='model_form_demo_detail'),
-]
+define MAKEFILE_CUSTOM
+# Custom Makefile
+# Add your custom makefile commands here
+#
+# PROJECT_NAME := my-new-project
 endef
 
 define PRIVACY_PAGE_MODEL
@@ -1632,9 +1598,11 @@ class CheckoutView(View):
         return redirect(session.url, code=303)
 
 class SuccessView(TemplateView):
+
     template_name = 'payments/success.html'
 
 class CancelView(TemplateView):
+
     template_name = 'payments/cancel.html'
 endef
 
@@ -1785,6 +1753,7 @@ class DataStructure:
 
 
 class Interview(DataStructure):
+
     # Protected methods for factorial calculation
     def _factorial_recursive(self, n):
         if n == 0:
@@ -1981,6 +1950,7 @@ class Interview(DataStructure):
 
 
 def setup_readline(local):
+
     # Enable tab completion
     readline.parse_and_bind("tab: complete")
     # Optionally, you can set the completer function manually
@@ -1988,6 +1958,7 @@ def setup_readline(local):
 
 
 def main():
+
     console = Console()
     interview = Interview()
 
@@ -2242,138 +2213,6 @@ THEMES = [
 ]
 endef
 
-define SITEUSER_ADMIN
-from django.contrib.auth.admin import UserAdmin
-from django.contrib import admin
-
-from .models import User
-
-admin.site.register(User, UserAdmin)
-endef
-
-define SITEUSER_EDIT_TEMPLATE
-{% extends 'base.html' %}
-
-{% block content %}
-  <h2>Edit User</h2>
-  <form method="post">
-    {% csrf_token %}
-    {{ form }}
-    <div class="d-flex">
-      <button type="submit">Save changes</button>
-      <a class="text-decoration-none" href="/user/profile">Cancel</a>
-    </div>
-  </form>
-{% endblock %}
-endef
-
-define SITEUSER_FORM
-from django import forms
-from django.contrib.auth.forms import UserChangeForm
-from .models import User
-
-class SiteUserForm(UserChangeForm):
-    class Meta(UserChangeForm.Meta):
-        model = User
-        fields = ("username", "user_theme_preference", "bio", "rate")
-
-    bio = forms.CharField(widget=forms.Textarea(attrs={"id": "editor"}), required=False)
-endef
-
-define SITEUSER_MODEL
-from django.db import models
-from django.contrib.auth.models import AbstractUser, Group, Permission
-from django.conf import settings
-
-class User(AbstractUser):
-    groups = models.ManyToManyField(Group, related_name='siteuser_set', blank=True)
-    user_permissions = models.ManyToManyField(
-        Permission, related_name='siteuser_set', blank=True
-    )
-    
-    user_theme_preference = models.CharField(max_length=10, choices=settings.THEMES, default='light')
-    
-    bio = models.TextField(blank=True, null=True)
-    rate = models.FloatField(blank=True, null=True)
-endef
-
-define SITEUSER_URLS
-from django.urls import path
-from .views import UserProfileView, UpdateThemePreferenceView, UserEditView
-
-urlpatterns = [
-    path('profile/', UserProfileView.as_view(), name='user-profile'),
-    path('update_theme_preference/', UpdateThemePreferenceView.as_view(), name='update_theme_preference'),
-    path('<int:pk>/edit/', UserEditView.as_view(), name='user-edit'),
-]
-endef
-
-define SITEUSER_VIEW_TEMPLATE
-{% extends 'base.html' %}
-
-{% block content %}
-<h2>User Profile</h2>
-<div class="d-flex justify-content-end">
-    <a class="btn btn-outline-secondary" href="{% url 'user-edit' pk=user.id %}">Edit</a>
-</div>
-<p>Username: {{ user.username }}</p>
-<p>Theme: {{ user.user_theme_preference }}</p>
-<p>Bio: {{ user.bio|default:""|safe }}</p>
-<p>Rate: {{ user.rate|default:"" }}</p>
-{% endblock %}
-endef
-
-define SITEUSER_VIEW
-import json
-
-from django.contrib.auth.mixins import LoginRequiredMixin
-from django.http import JsonResponse
-from django.utils.decorators import method_decorator
-from django.views import View
-from django.views.decorators.csrf import csrf_exempt
-from django.views.generic import DetailView
-from django.views.generic.edit import UpdateView
-from django.urls import reverse_lazy
-
-from .models import User
-from .forms import SiteUserForm
-
-
-class UserProfileView(LoginRequiredMixin, DetailView):
-    model = User
-    template_name = "profile.html"
-
-    def get_object(self, queryset=None):
-        return self.request.user
-
-
-@method_decorator(csrf_exempt, name="dispatch")
-class UpdateThemePreferenceView(View):
-    def post(self, request, *args, **kwargs):
-        try:
-            data = json.loads(request.body.decode("utf-8"))
-            new_theme = data.get("theme")
-            user = request.user
-            user.user_theme_preference = new_theme
-            user.save()
-            response_data = {"theme": new_theme}
-            return JsonResponse(response_data)
-        except json.JSONDecodeError as e:
-            return JsonResponse({"error": e}, status=400)
-
-    def http_method_not_allowed(self, request, *args, **kwargs):
-        return JsonResponse({"error": "Invalid request method"}, status=405)
-
-
-class UserEditView(LoginRequiredMixin, UpdateView):
-    model = User
-    template_name = 'user_edit.html'  # Create this template in your templates folder
-    form_class = SiteUserForm
-
-    def get_success_url(self):
-        # return reverse_lazy('user-profile', kwargs={'pk': self.object.pk})
-        return reverse_lazy('user-profile')
-endef
 
 define SITEPAGE_TEMPLATE
 {% extends 'base.html' %}
@@ -2479,6 +2318,180 @@ tinymce.init({
 });
 endef
 
+define WAGTAIL_BLOCK_CAROUSEL
+        <div id="carouselExampleCaptions" class="carousel slide">
+            <div class="carousel-indicators">
+                {% for image in block.value.images %}
+                    <button type="button"
+                            data-bs-target="#carouselExampleCaptions"
+                            data-bs-slide-to="{{ forloop.counter0 }}"
+                            {% if forloop.first %}class="active" aria-current="true"{% endif %}
+                            aria-label="Slide {{ forloop.counter }}"></button>
+                {% endfor %}
+            </div>
+            <div class="carousel-inner">
+                {% for image in block.value.images %}
+                    <div class="carousel-item {% if forloop.first %}active{% endif %}">
+                        <img src="{{ image.file.url }}" class="d-block w-100" alt="...">
+                        <div class="carousel-caption d-none d-md-block">
+                            <h5>{{ image.title }}</h5>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+            <button class="carousel-control-prev"
+                    type="button"
+                    data-bs-target="#carouselExampleCaptions"
+                    data-bs-slide="prev">
+                <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+                <span class="visually-hidden">Previous</span>
+            </button>
+            <button class="carousel-control-next"
+                    type="button"
+                    data-bs-target="#carouselExampleCaptions"
+                    data-bs-slide="next">
+                <span class="carousel-control-next-icon" aria-hidden="true"></span>
+                <span class="visually-hidden">Next</span>
+            </button>
+        </div>
+endef
+
+define WAGTAIL_BLOCK_MARKETING
+{% load wagtailcore_tags %}
+<div class="{{ self.block_class }}">
+    {% if block.value.images.0 %}
+        {% include 'blocks/carousel_block.html' %}
+    {% else %}
+        {{ self.title }}
+        {{ self.content }}
+    {% endif %}
+</div>
+endef
+
+define WAGTAIL_CONTACT_PAGE_TEMPLATE
+{% extends 'base.html' %}
+{% load crispy_forms_tags static wagtailcore_tags %}
+{% block content %}
+        <h1>{{ page.title }}</h1>
+        {{ page.intro|richtext }}
+        <form action="{% pageurl page %}" method="POST">
+            {% csrf_token %}
+            {{ form.as_p }}
+            <input type="submit">
+        </form>
+{% endblock %}
+endef
+
+define WAGTAIL_CONTACT_PAGE_TEST
+from django.test import TestCase
+from wagtail.test.utils import WagtailPageTestCase
+from wagtail.models import Page
+
+from contactpage.models import ContactPage, FormField
+
+class ContactPageTest(TestCase, WagtailPageTestCase):
+    def test_contact_page_creation(self):
+        # Create a ContactPage instance
+        contact_page = ContactPage(
+            title='Contact',
+            intro='Welcome to our contact page!',
+            thank_you_text='Thank you for reaching out.'
+        )
+
+        # Save the ContactPage instance
+        self.assertEqual(contact_page.save_revision().publish().get_latest_revision_as_page(), contact_page)
+
+    def test_form_field_creation(self):
+        # Create a ContactPage instance
+        contact_page = ContactPage(
+            title='Contact',
+            intro='Welcome to our contact page!',
+            thank_you_text='Thank you for reaching out.'
+        )
+        # Save the ContactPage instance
+        contact_page_revision = contact_page.save_revision()
+        contact_page_revision.publish()
+
+        # Create a FormField associated with the ContactPage
+        form_field = FormField(
+            page=contact_page,
+            label='Your Name',
+            field_type='singleline',
+            required=True
+        )
+        form_field.save()
+
+        # Retrieve the ContactPage from the database
+        contact_page_from_db = Page.objects.get(id=contact_page.id).specific
+
+        # Check if the FormField is associated with the ContactPage
+        self.assertEqual(contact_page_from_db.form_fields.first(), form_field)
+
+    def test_contact_page_form_submission(self):
+        # Create a ContactPage instance
+        contact_page = ContactPage(
+            title='Contact',
+            intro='Welcome to our contact page!',
+            thank_you_text='Thank you for reaching out.'
+        )
+        # Save the ContactPage instance
+        contact_page_revision = contact_page.save_revision()
+        contact_page_revision.publish()
+
+        # Simulate a form submission
+        form_data = {
+            'your_name': 'John Doe',
+            # Add other form fields as needed
+        }
+
+        response = self.client.post(contact_page.url, form_data)
+
+        # Check if the form submission is successful (assuming a 302 redirect)
+        self.assertEqual(response.status_code, 302)
+        
+        # You may add more assertions based on your specific requirements
+endef
+
+define WAGTAIL_CONTACT_PAGE_MODEL
+from django.db import models
+from modelcluster.fields import ParentalKey
+from wagtail.admin.panels import (
+    FieldPanel, FieldRowPanel,
+    InlinePanel, MultiFieldPanel
+)
+from wagtail.fields import RichTextField
+from wagtail.contrib.forms.models import AbstractEmailForm, AbstractFormField
+
+
+class FormField(AbstractFormField):
+    page = ParentalKey('ContactPage', on_delete=models.CASCADE, related_name='form_fields')
+
+
+class ContactPage(AbstractEmailForm):
+    intro = RichTextField(blank=True)
+    thank_you_text = RichTextField(blank=True)
+
+    content_panels = AbstractEmailForm.content_panels + [
+        FieldPanel('intro'),
+        InlinePanel('form_fields', label="Form fields"),
+        FieldPanel('thank_you_text'),
+        MultiFieldPanel([
+            FieldRowPanel([
+                FieldPanel('from_address', classname="col6"),
+                FieldPanel('to_address', classname="col6"),
+            ]),
+            FieldPanel('subject'),
+        ], "Email"),
+    ]
+
+    class Meta:
+        verbose_name = "Contact Page"
+endef
+
+define WAGTAIL_CONTACT_PAGE_LANDING
+{% extends 'base.html' %}
+{% block content %}<div class="container"><h1>Thank you!</h1></div>{% endblock %}
+endef
 define WAGTAIL_HTML_OFFCANVAS
 {% load wagtailcore_tags %}
 {% wagtail_site as current_site %}
@@ -2844,29 +2857,44 @@ endef
 # ------------------------------------------------------------------------------  
 
 export ALLAUTH_LAYOUT_BASE
-export AUTHENTICATION_BACKENDS
 export BABELRC
-export BACKEND_APPS
-export BLOCK_CAROUSEL
-export BLOCK_MARKETING
-export COMPONENT_CLOCK
-export COMPONENT_ERROR
-export COMPONENT_USER_MENU
-export CONTACT_PAGE_MODEL
-export CONTACT_PAGE_TEMPLATE
-export CONTACT_PAGE_LANDING
-export CONTACT_PAGE_TEST
-export CUSTOM_ADMIN
+export WAGTAIL_CONTACT_PAGE_MODEL
+export WAGTAIL_CONTACT_PAGE_TEMPLATE
+export WAGTAIL_CONTACT_PAGE_LANDING
+export WAGTAIL_CONTACT_PAGE_TEST
 export CUSTOM_ENV_EC2_USER
 export CUSTOM_ENV_VAR_FILE
-export CUSTOM_MAKEFILE
+export MAKEFILE_CUSTOM
+export DJANGO_AUTHENTICATION_BACKENDS
+export DJANGO_BACKEND_APPS
 export DJANGO_BASE_TEMPLATE
+export DJANGO_CUSTOM_ADMIN
+export DJANGO_FOOTER
+export DJANGO_HEADER
+export DJANGO_FRONTEND_APP
+export DJANGO_FRONTEND_APP_CONFIG
+export DJANGO_FRONTEND_COMPONENTS
+export DJANGO_FRONTEND_PORTAL
+export DJANGO_FRONTEND_STYLES
+export DJANGO_FRONTEND_COMPONENT_CLOCK
+export DJANGO_FRONTEND_COMPONENT_ERROR
+export DJANGO_FRONTEND_COMPONENT_USER_MENU
+export DJANGO_FRONTEND_CONTEXT_INDEX
+export DJANGO_FRONTEND_CONTEXT_USER_PROVIDER
 export DJANGO_MANAGE_PY
+export DJANGO_MODEL_FORM_DEMO_ADMIN
+export DJANGO_MODEL_FORM_DEMO_FORMS
+export DJANGO_MODEL_FORM_DEMO_MODEL
+export DJANGO_MODEL_FORM_DEMO_URLS
+export DJANGO_MODEL_FORM_DEMO_VIEWS
+export DJANGO_MODEL_FORM_DEMO_TEMPLATE_DETAIL
+export DJANGO_MODEL_FORM_DEMO_TEMPLATE_FORM
+export DJANGO_MODEL_FORM_DEMO_TEMPLATE_LIST
 export DJANGO_SETTINGS_DEV
 export DJANGO_SETTINGS_PROD
-export DJANGO_SETTINGS_FILE_BASE
-export DJANGO_SETTINGS_FILE_DEV
-export DJANGO_SETTINGS_FILE_PROD
+export DJANGO_SETTINGS_BASE_FILE
+export DJANGO_SETTINGS_DEV_FILE
+export DJANGO_SETTINGS_PROD_FILE
 export DJANGO_SETTINGS_REST_FRAMEWORK
 export DJANGO_SETTINGS_THEMES
 export DJANGO_URLS
@@ -2884,36 +2912,26 @@ export DJANGO_SEARCH_TEMPLATE
 export DJANGO_SEARCH_URLS
 export DJANGO_SEARCH_UTILS
 export DJANGO_SEARCH_VIEWS
+export DJANGO_SITEUSER_ADMIN
+export DJANGO_SITEUSER_FORM
+export DJANGO_SITEUSER_MODEL
+export DJANGO_SITEUSER_URLS
+export DJANGO_SITEUSER_VIEW
+export DJANGO_SITEUSER_VIEW_TEMPLATE
+export DJANGO_SITEUSER_EDIT_TEMPLATE
 export DOCKERFILE
 export DOCKERCOMPOSE
 export ESLINTRC
 export FAVICON_TEMPLATE
-export FRONTEND_APP
-export FRONTEND_APP_CONFIG
-export FRONTEND_COMPONENTS
-export FRONTEND_PORTAL
-export FRONTEND_STYLES
 export GIT_IGNORE
 export HTML_ERROR
 export HTML_INDEX
-export DJANGO_FOOTER
-export DJANGO_HEADER
 export INTERNAL_IPS
 export JENKINS_FILE
 export LOGGING_DEMO_VIEWS
 export LOGGING_DEMO_URLS
 export LOGGING_DEMO_SETTINGS
-export MODEL_FORM_DEMO_ADMIN
-export MODEL_FORM_DEMO_FORMS
-export MODEL_FORM_DEMO_MODEL
-export MODEL_FORM_DEMO_URLS
-export MODEL_FORM_DEMO_VIEWS
-export MODEL_FORM_DEMO_TEMPLATE_DETAIL
-export MODEL_FORM_DEMO_TEMPLATE_FORM
-export MODEL_FORM_DEMO_TEMPLATE_LIST
 export PRIVACY_PAGE_MODEL
-export FRONTEND_CONTEXT_INDEX
-export FRONTEND_CONTEXT_USER_PROVIDER
 export PAYMENTS_ADMIN
 export PAYMENTS_FORM
 export PAYMENTS_MIGRATION_0002
@@ -2936,17 +2954,12 @@ export REQUIREMENTS_TEST
 export SEPARATOR
 export SITEPAGE_MODEL
 export SITEPAGE_TEMPLATE
-export SITEUSER_ADMIN
-export SITEUSER_FORM
-export SITEUSER_MODEL
-export SITEUSER_URLS
-export SITEUSER_VIEW
-export SITEUSER_VIEW_TEMPLATE
-export SITEUSER_EDIT_TEMPLATE
 export THEME_BLUE
 export THEME_TOGGLER
 export TINYMCE_JS
 export WAGTAIL_BASE_TEMPLATE
+export WAGTAIL_BLOCK_CAROUSEL
+export WAGTAIL_BLOCK_MARKETING
 export WAGTAIL_HOME_PAGE_MODEL
 export WAGTAIL_HOME_PAGE_TEMPLATE
 export WAGTAIL_HOME_PAGE_VIEWS
@@ -3151,10 +3164,9 @@ django-utils-default:
 	-$(GIT_ADD) backend/utils.py
 
 django-custom-admin-default:
-	@echo "$$CUSTOM_ADMIN" > backend/admin.py
-	@echo "$$BACKEND_APPS" > backend/apps.py
-	-$(GIT_ADD) backend/admin.py
-	-$(GIT_ADD) backend/apps.py
+	@echo "$$DJANGO_CUSTOM_ADMIN" > $(DJANGO_CUSTOM_ADMIN_FILE)
+	@echo "$$DJANGO_BACKEND_APPS" > $(DJANGO_BACKEND_APPS_FILE)
+	-$(GIT_ADD) backend/*.py
 
 django-dockerfile-default:
 	@echo "$$DOCKERFILE" > Dockerfile
@@ -3188,6 +3200,36 @@ django-footer-template-default:
 	@echo "$$DJANGO_FOOTER" > backend/templates/footer.html
 	-$(GIT_ADD) backend/templates/footer.html
 
+django-init-minimal-default: separator \
+	db-init \
+	django-install-minimal \
+	django-project \
+	django-utils \
+	pip-freeze \
+	pip-init-test \
+	django-settings-dir \
+	django-custom-admin \
+	django-dockerfile \
+	django-offcanvas-template \
+	django-header-template \
+	django-footer-template \
+	django-base-template \
+	django-manage-py \
+	django-urls \
+	django-urls-debug \
+	django-favicon \
+	django-settings-minimal \
+	django-settings-dev-minimal \
+	django-settings-prod \
+	django-home \
+	django-frontend \
+	django-migrate \
+	gitignore \
+	readme \
+	lint \
+	su \
+	serve
+
 django-init-default: separator \
 	db-init \
 	django-install \
@@ -3217,8 +3259,8 @@ django-init-default: separator \
 	django-rest-serializers \
 	django-rest-views \
 	django-urls-api \
-	django-migrate \
 	django-frontend \
+	django-migrate \
 	readme \
 	lint \
 	su \
@@ -3260,12 +3302,20 @@ django-wagtail-init-default: separator \
 	django-rest-views \
 	django-urls-api \
 	wagtail-urls-home \
-	django-migrate \
 	django-frontend \
+	django-migrate \
 	readme \
 	lint \
 	su \
 	serve
+
+django-install-minimal-default:
+	$(ENSURE_PIP)
+	python -m pip install \
+	Django \
+	dj-database-url \
+	django-debug-toolbar \
+	python-webpack-boilerplate
 
 django-install-default:
 	$(ENSURE_PIP)
@@ -3326,16 +3376,16 @@ django-frontend-default: python-webpack-init
 	$(ADD_DIR) frontend/src/context
 	$(ADD_DIR) frontend/src/images
 	$(ADD_DIR) frontend/src/utils
-	@echo "$$COMPONENT_CLOCK" > frontend/src/components/Clock.js
-	@echo "$$COMPONENT_ERROR" > frontend/src/components/ErrorBoundary.js
-	@echo "$$FRONTEND_CONTEXT_INDEX" > frontend/src/context/index.js
-	@echo "$$FRONTEND_CONTEXT_USER_PROVIDER" > frontend/src/context/UserContextProvider.js
-	@echo "$$COMPONENT_USER_MENU" > frontend/src/components/UserMenu.js
-	@echo "$$FRONTEND_APP" > frontend/src/application/app.js
-	@echo "$$FRONTEND_APP_CONFIG" > frontend/src/application/config.js
-	@echo "$$FRONTEND_COMPONENTS" > frontend/src/components/index.js
-	@echo "$$FRONTEND_PORTAL" > frontend/src/dataComponents.js
-	@echo "$$FRONTEND_STYLES" > frontend/src/styles/index.scss
+	@echo "$$DJANGO_FRONTEND_COMPONENT_CLOCK" > frontend/src/components/Clock.js
+	@echo "$$DJANGO_FRONTEND_COMPONENT_ERROR" > frontend/src/components/ErrorBoundary.js
+	@echo "$$DJANGO_FRONTEND_CONTEXT_INDEX" > frontend/src/context/index.js
+	@echo "$$DJANGO_FRONTEND_CONTEXT_USER_PROVIDER" > frontend/src/context/UserContextProvider.js
+	@echo "$$DJANGO_FRONTEND_COMPONENT_USER_MENU" > frontend/src/components/UserMenu.js
+	@echo "$$DJANGO_FRONTEND_APP" > frontend/src/application/app.js
+	@echo "$$DJANGO_FRONTEND_APP_CONFIG" > frontend/src/application/config.js
+	@echo "$$DJANGO_FRONTEND_COMPONENTS" > frontend/src/components/index.js
+	@echo "$$DJANGO_FRONTEND_PORTAL" > frontend/src/dataComponents.js
+	@echo "$$DJANGO_FRONTEND_STYLES" > frontend/src/styles/index.scss
 	@echo "$$BABELRC" > frontend/.babelrc
 	@echo "$$ESLINTRC" > frontend/.eslintrc
 	@echo "$$THEME_BLUE" > frontend/src/styles/theme-blue.scss
@@ -3344,7 +3394,7 @@ django-frontend-default: python-webpack-init
 	@$(MAKE) django-npm-save
 	@$(MAKE) django-npm-save-dev
 	@$(MAKE) npm-install
-	-$(GIT_ADD) $(FRONTEND_FILES)
+	-$(GIT_ADD) $(DJANGO_FRONTEND_FILES)
 
 django-home-default:
 	python manage.py startapp home
@@ -3352,10 +3402,11 @@ django-home-default:
 	@echo "$$DJANGO_HOME_PAGE_TEMPLATE" > home/templates/home.html
 	@echo "$$DJANGO_HOME_PAGE_VIEWS" > home/views.py
 	@echo "$$DJANGO_HOME_PAGE_URLS" > home/urls.py
-	@echo "INSTALLED_APPS.append('home')  # noqa" >> $(DJANGO_SETTINGS_FILE_BASE)
+	@echo "INSTALLED_APPS.append('home')  # noqa" >> $(DJANGO_SETTINGS_BASE_FILE)
 	@echo "urlpatterns += [path('', include('home.urls'))]" >> backend/urls.py
 	-$(GIT_ADD) home/templates
 	-$(GIT_ADD) home/*.py
+	-$(GIT_ADD) home/migrations/*.py
 
 django-payments-demo-default:
 	python manage.py startapp payments
@@ -3371,13 +3422,13 @@ django-payments-demo-default:
 	@echo "$$PAYMENTS_TEMPLATE_SUCCESS" > payments/templates/payments/success.html
 	@echo "$$PAYMENTS_TEMPLATE_PRODUCT_LIST" > payments/templates/payments/product_list.html
 	@echo "$$PAYMENTS_TEMPLATE_PRODUCT_DETAIL" > payments/templates/payments/product_detail.html
-	@echo "DJSTRIPE_FOREIGN_KEY_TO_FIELD = 'id'" >> $(DJANGO_SETTINGS_FILE_BASE)
-	@echo "DJSTRIPE_WEBHOOK_VALIDATION = 'retrieve_event'" >> $(DJANGO_SETTINGS_FILE_BASE)
-	@echo "STRIPE_PUBLISHABLE_KEY = os.environ.get('STRIPE_PUBLISHABLE_KEY')" >> $(DJANGO_SETTINGS_FILE_BASE)
-	@echo "STRIPE_SECRET_KEY = os.environ.get('STRIPE_SECRET_KEY')" >> $(DJANGO_SETTINGS_FILE_BASE)
-	@echo "STRIPE_TEST_SECRET_KEY = os.environ.get('STRIPE_TEST_SECRET_KEY')" >> $(DJANGO_SETTINGS_FILE_BASE)
-	@echo "INSTALLED_APPS.append('payments')  # noqa" >> $(DJANGO_SETTINGS_FILE_BASE)
-	@echo "INSTALLED_APPS.append('djstripe')  # noqa" >> $(DJANGO_SETTINGS_FILE_BASE)
+	@echo "DJSTRIPE_FOREIGN_KEY_TO_FIELD = 'id'" >> $(DJANGO_SETTINGS_BASE_FILE)
+	@echo "DJSTRIPE_WEBHOOK_VALIDATION = 'retrieve_event'" >> $(DJANGO_SETTINGS_BASE_FILE)
+	@echo "STRIPE_PUBLISHABLE_KEY = os.environ.get('STRIPE_PUBLISHABLE_KEY')" >> $(DJANGO_SETTINGS_BASE_FILE)
+	@echo "STRIPE_SECRET_KEY = os.environ.get('STRIPE_SECRET_KEY')" >> $(DJANGO_SETTINGS_BASE_FILE)
+	@echo "STRIPE_TEST_SECRET_KEY = os.environ.get('STRIPE_TEST_SECRET_KEY')" >> $(DJANGO_SETTINGS_BASE_FILE)
+	@echo "INSTALLED_APPS.append('payments')  # noqa" >> $(DJANGO_SETTINGS_BASE_FILE)
+	@echo "INSTALLED_APPS.append('djstripe')  # noqa" >> $(DJANGO_SETTINGS_BASE_FILE)
 	@echo "urlpatterns += [path('payments/', include('payments.urls'))]" >> backend/urls.py
 	python manage.py makemigrations payments
 	@echo "$$PAYMENTS_MIGRATION_0002" > payments/migrations/0002_set_stripe_api_keys.py
@@ -3400,8 +3451,8 @@ django-search-default:
 	@echo "$$DJANGO_SEARCH_URLS" > search/urls.py
 	@echo "$$DJANGO_SEARCH_UTILS" > search/utils.py
 	@echo "$$DJANGO_SEARCH_VIEWS" > search/views.py
-	@echo "$$DJANGO_SEARCH_SETTINGS" >> $(DJANGO_SETTINGS_FILE_BASE)
-	@echo "INSTALLED_APPS.append('search')" >> $(DJANGO_SETTINGS_FILE_BASE)
+	@echo "$$DJANGO_SEARCH_SETTINGS" >> $(DJANGO_SETTINGS_BASE_FILE)
+	@echo "INSTALLED_APPS.append('search')" >> $(DJANGO_SETTINGS_BASE_FILE)
 	@echo "urlpatterns += [path('search/', include('search.urls'))]" >> backend/urls.py
 	-$(GIT_ADD) search/templates
 	-$(GIT_ADD) search/*.py
@@ -3412,16 +3463,16 @@ django-secret-key-default:
 django-siteuser-default:
 	python manage.py startapp siteuser
 	$(ADD_DIR) siteuser/templates/
-	@echo "$$SITEUSER_FORM" > siteuser/forms.py
-	@echo "$$SITEUSER_MODEL" > siteuser/models.py
-	@echo "$$SITEUSER_ADMIN" > siteuser/admin.py
-	@echo "$$SITEUSER_VIEW" > siteuser/views.py
-	@echo "$$SITEUSER_URLS" > siteuser/urls.py
-	@echo "$$SITEUSER_VIEW_TEMPLATE" > siteuser/templates/profile.html
-	@echo "$$SITEUSER_TEMPLATE" > siteuser/templates/user.html
-	@echo "$$SITEUSER_EDIT_TEMPLATE" > siteuser/templates/user_edit.html
-	@echo "INSTALLED_APPS.append('siteuser')  # noqa" >> $(DJANGO_SETTINGS_FILE_BASE)
-	@echo "AUTH_USER_MODEL = 'siteuser.User'" >> $(DJANGO_SETTINGS_FILE_BASE)
+	@echo "$$DJANGO_SITEUSER_FORM" > siteuser/forms.py
+	@echo "$$DJANGO_SITEUSER_MODEL" > siteuser/models.py
+	@echo "$$DJANGO_SITEUSER_ADMIN" > siteuser/admin.py
+	@echo "$$DJANGO_SITEUSER_VIEW" > siteuser/views.py
+	@echo "$$DJANGO_SITEUSER_URLS" > siteuser/urls.py
+	@echo "$$DJANGO_SITEUSER_VIEW_TEMPLATE" > siteuser/templates/profile.html
+	@echo "$$DJANGO_SITEUSER_TEMPLATE" > siteuser/templates/user.html
+	@echo "$$DJANGO_SITEUSER_EDIT_TEMPLATE" > siteuser/templates/user_edit.html
+	@echo "INSTALLED_APPS.append('siteuser')  # noqa" >> $(DJANGO_SETTINGS_BASE_FILE)
+	@echo "AUTH_USER_MODEL = 'siteuser.User'" >> $(DJANGO_SETTINGS_BASE_FILE)
 	@echo "urlpatterns += [path('user/', include('siteuser.urls'))]" >> backend/urls.py
 	-$(GIT_ADD) siteuser/templates
 	-$(GIT_ADD) siteuser/*.py
@@ -3448,16 +3499,16 @@ django-migrations-show-default:
 
 django-modelform-demo-default:
 	python manage.py startapp model_form_demo
-	@echo "$$MODEL_FORM_DEMO_ADMIN" > model_form_demo/admin.py
-	@echo "$$MODEL_FORM_DEMO_FORMS" > model_form_demo/forms.py
-	@echo "$$MODEL_FORM_DEMO_MODEL" > model_form_demo/models.py
-	@echo "$$MODEL_FORM_DEMO_URLS" > model_form_demo/urls.py
-	@echo "$$MODEL_FORM_DEMO_VIEWS" > model_form_demo/views.py
+	@echo "$$DJANGO_MODEL_FORM_DEMO_ADMIN" > model_form_demo/admin.py
+	@echo "$$DJANGO_MODEL_FORM_DEMO_FORMS" > model_form_demo/forms.py
+	@echo "$$DJANGO_MODEL_FORM_DEMO_MODEL" > model_form_demo/models.py
+	@echo "$$DJANGO_MODEL_FORM_DEMO_URLS" > model_form_demo/urls.py
+	@echo "$$DJANGO_MODEL_FORM_DEMO_VIEWS" > model_form_demo/views.py
 	$(ADD_DIR) model_form_demo/templates
-	@echo "$$MODEL_FORM_DEMO_TEMPLATE_DETAIL" > model_form_demo/templates/model_form_demo_detail.html
-	@echo "$$MODEL_FORM_DEMO_TEMPLATE_FORM" > model_form_demo/templates/model_form_demo_form.html
-	@echo "$$MODEL_FORM_DEMO_TEMPLATE_LIST" > model_form_demo/templates/model_form_demo_list.html
-	@echo "INSTALLED_APPS.append('model_form_demo')  # noqa" >> $(DJANGO_SETTINGS_FILE_BASE)
+	@echo "$$DJANGO_MODEL_FORM_DEMO_TEMPLATE_DETAIL" > model_form_demo/templates/model_form_demo_detail.html
+	@echo "$$DJANGO_MODEL_FORM_DEMO_TEMPLATE_FORM" > model_form_demo/templates/model_form_demo_form.html
+	@echo "$$DJANGO_MODEL_FORM_DEMO_TEMPLATE_LIST" > model_form_demo/templates/model_form_demo_list.html
+	@echo "INSTALLED_APPS.append('model_form_demo')  # noqa" >> $(DJANGO_SETTINGS_BASE_FILE)
 	@echo "urlpatterns += [path('model-form-demo/', include('model_form_demo.urls'))]" >> backend/urls.py
 	python manage.py makemigrations
 	-$(GIT_ADD) model_form_demo/*.py
@@ -3468,8 +3519,8 @@ django-logging-demo-default:
 	python manage.py startapp logging_demo
 	@echo "$$LOGGING_DEMO_VIEWS" > logging_demo/views.py
 	@echo "$$LOGGING_DEMO_URLS" > logging_demo/urls.py
-	@echo "$$LOGGING_DEMO_SETTINGS" >> $(DJANGO_SETTINGS_FILE_BASE)
-	@echo "INSTALLED_APPS.append('logging_demo')  # noqa" >> $(DJANGO_SETTINGS_FILE_BASE)
+	@echo "$$LOGGING_DEMO_SETTINGS" >> $(DJANGO_SETTINGS_BASE_FILE)
+	@echo "INSTALLED_APPS.append('logging_demo')  # noqa" >> $(DJANGO_SETTINGS_BASE_FILE)
 	@echo "urlpatterns += [path('logging-demo/', include('logging_demo.urls'))]" >> backend/urls.py
 	-$(GIT_ADD) logging_demo/*.py
 	-$(GIT_ADD) logging_demo/migrations/*.py
@@ -3482,61 +3533,86 @@ django-settings-dir-default:
 	@$(ADD_DIR) $(DJANGO_SETTINGS_DIR)
 	@$(COPY_FILE) backend/settings.py backend/settings/base.py
 	@$(DEL_FILE) backend/settings.py
-	-$(GIT_ADD) backend/settings/
+	-$(GIT_ADD) backend/settings/*.py
+
+django-settings-minimal-default:
+	@echo "# $(PROJECT_NAME)" >> $(DJANGO_SETTINGS_BASE_FILE)
+	@echo "import os  # noqa" >> $(DJANGO_SETTINGS_BASE_FILE)
+	@echo "import dj_database_url  # noqa" >> $(DJANGO_SETTINGS_BASE_FILE)
+	@echo "INSTALLED_APPS.append('webpack_boilerplate')" >> $(DJANGO_SETTINGS_BASE_FILE)
+	@echo "INSTALLED_APPS.append('debug_toolbar')" >> $(DJANGO_SETTINGS_BASE_FILE)
+	@echo "PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))" >> $(DJANGO_SETTINGS_BASE_FILE)
+	@echo "BASE_DIR = os.path.dirname(PROJECT_DIR)" >> $(DJANGO_SETTINGS_BASE_FILE)
+	@echo "STATICFILES_DIRS = []" >> $(DJANGO_SETTINGS_BASE_FILE)
+	@echo "STATICFILES_DIRS.append(os.path.join(BASE_DIR, 'frontend/build'))" >> $(DJANGO_SETTINGS_BASE_FILE)
+	@echo "TEMPLATES[0]['DIRS'].append(os.path.join(PROJECT_DIR, 'templates'))" >> $(DJANGO_SETTINGS_BASE_FILE)
+	@echo "WEBPACK_LOADER = { 'MANIFEST_FILE': os.path.join(BASE_DIR, 'frontend/build/manifest.json'), }" >> $(DJANGO_SETTINGS_BASE_FILE)
 
 django-settings-base-default:
-	@echo "# $(PROJECT_NAME)" >> $(DJANGO_SETTINGS_FILE_BASE)
-	@echo "# Uncomment the next two lines to enable the custom admin" >> $(DJANGO_SETTINGS_FILE_BASE)
-	@echo "# INSTALLED_APPS = [app for app in INSTALLED_APPS if app != 'django.contrib.admin']" >> $(DJANGO_SETTINGS_FILE_BASE)
-	@echo "# INSTALLED_APPS.append('backend.apps.CustomAdminConfig')" >> $(DJANGO_SETTINGS_FILE_BASE)
-	@echo "import os  # noqa" >> $(DJANGO_SETTINGS_FILE_BASE)
-	@echo "import dj_database_url  # noqa" >> $(DJANGO_SETTINGS_FILE_BASE)
-	@echo "$$AUTHENTICATION_BACKENDS" >> $(DJANGO_SETTINGS_FILE_BASE)
-	@echo "$$DJANGO_SETTINGS_REST_FRAMEWORK" >> $(DJANGO_SETTINGS_FILE_BASE)
-	@echo "$$DJANGO_SETTINGS_THEMES" >> $(DJANGO_SETTINGS_FILE_BASE)
-	@echo "ALLOWED_HOSTS = ['*']" >> $(DJANGO_SETTINGS_FILE_BASE)
-	@echo "DATABASE_URL = os.environ.get('DATABASE_URL', 'postgres://$(DB_USER):$(DB_PASS)@$(DB_HOST):$(DB_PORT)/$(PROJECT_NAME)')" >> $(DJANGO_SETTINGS_FILE_BASE)
-	@echo "DATABASES['default'] = dj_database_url.parse(DATABASE_URL)" >> $(DJANGO_SETTINGS_FILE_BASE)
-	@echo "DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'" >> $(DJANGO_SETTINGS_FILE_BASE)
-	@echo "EXPLORER_CONNECTIONS = { 'Default': 'default' }" >> $(DJANGO_SETTINGS_FILE_BASE)
-	@echo "EXPLORER_DEFAULT_CONNECTION = 'default'" >> $(DJANGO_SETTINGS_FILE_BASE)
-	@echo "INSTALLED_APPS.append('allauth')" >> $(DJANGO_SETTINGS_FILE_BASE)
-	@echo "INSTALLED_APPS.append('allauth.account')" >> $(DJANGO_SETTINGS_FILE_BASE)
-	@echo "INSTALLED_APPS.append('allauth.socialaccount')" >> $(DJANGO_SETTINGS_FILE_BASE)
-	@echo "INSTALLED_APPS.append('crispy_bootstrap5')" >> $(DJANGO_SETTINGS_FILE_BASE)
-	@echo "INSTALLED_APPS.append('crispy_forms')" >> $(DJANGO_SETTINGS_FILE_BASE)
-	@echo "INSTALLED_APPS.append('debug_toolbar')" >> $(DJANGO_SETTINGS_FILE_BASE)
-	@echo "INSTALLED_APPS.append('django_extensions')" >> $(DJANGO_SETTINGS_FILE_BASE)
-	@echo "INSTALLED_APPS.append('django_recaptcha')" >> $(DJANGO_SETTINGS_FILE_BASE)
-	@echo "INSTALLED_APPS.append('rest_framework')" >> $(DJANGO_SETTINGS_FILE_BASE)
-	@echo "INSTALLED_APPS.append('rest_framework.authtoken')" >> $(DJANGO_SETTINGS_FILE_BASE)
-	@echo "INSTALLED_APPS.append('webpack_boilerplate')" >> $(DJANGO_SETTINGS_FILE_BASE)
-	@echo "LOGIN_REDIRECT_URL = '/'" >> $(DJANGO_SETTINGS_FILE_BASE)
-	@echo "MIDDLEWARE.append('allauth.account.middleware.AccountMiddleware')" >> $(DJANGO_SETTINGS_FILE_BASE)
-	@echo "PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))" >> $(DJANGO_SETTINGS_FILE_BASE)
-	@echo "BASE_DIR = os.path.dirname(PROJECT_DIR)" >> $(DJANGO_SETTINGS_FILE_BASE)
-	@echo "SILENCED_SYSTEM_CHECKS = ['django_recaptcha.recaptcha_test_key_error']" >> $(DJANGO_SETTINGS_FILE_BASE)
-	@echo "STATICFILES_DIRS = []" >> $(DJANGO_SETTINGS_FILE_BASE)
-	@echo "STATICFILES_DIRS.append(os.path.join(BASE_DIR, 'frontend/build'))" >> $(DJANGO_SETTINGS_FILE_BASE)
-	@echo "TEMPLATES[0]['DIRS'].append(os.path.join(PROJECT_DIR, 'templates'))" >> $(DJANGO_SETTINGS_FILE_BASE)
-	@echo "WEBPACK_LOADER = { 'MANIFEST_FILE': os.path.join(BASE_DIR, 'frontend/build/manifest.json'), }" >> $(DJANGO_SETTINGS_FILE_BASE)
+	@echo "# $(PROJECT_NAME)" >> $(DJANGO_SETTINGS_BASE_FILE)
+	@echo "# Uncomment the next two lines to enable the custom admin" >> $(DJANGO_SETTINGS_BASE_FILE)
+	@echo "# INSTALLED_APPS = [app for app in INSTALLED_APPS if app != 'django.contrib.admin']" >> $(DJANGO_SETTINGS_BASE_FILE)
+	@echo "# INSTALLED_APPS.append('backend.apps.CustomAdminConfig')" >> $(DJANGO_SETTINGS_BASE_FILE)
+	@echo "import os  # noqa" >> $(DJANGO_SETTINGS_BASE_FILE)
+	@echo "import dj_database_url  # noqa" >> $(DJANGO_SETTINGS_BASE_FILE)
+	@echo "$$DJANGO_AUTHENTICATION_BACKENDS" >> $(DJANGO_SETTINGS_BASE_FILE)
+	@echo "$$DJANGO_SETTINGS_REST_FRAMEWORK" >> $(DJANGO_SETTINGS_BASE_FILE)
+	@echo "$$DJANGO_SETTINGS_THEMES" >> $(DJANGO_SETTINGS_BASE_FILE)
+	@echo "ALLOWED_HOSTS = ['*']" >> $(DJANGO_SETTINGS_BASE_FILE)
+	@echo "DATABASE_URL = os.environ.get('DATABASE_URL', 'postgres://$(DB_USER):$(DB_PASS)@$(DB_HOST):$(DB_PORT)/$(PROJECT_NAME)')" >> $(DJANGO_SETTINGS_BASE_FILE)
+	@echo "DATABASES['default'] = dj_database_url.parse(DATABASE_URL)" >> $(DJANGO_SETTINGS_BASE_FILE)
+	@echo "DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'" >> $(DJANGO_SETTINGS_BASE_FILE)
+	@echo "EXPLORER_CONNECTIONS = { 'Default': 'default' }" >> $(DJANGO_SETTINGS_BASE_FILE)
+	@echo "EXPLORER_DEFAULT_CONNECTION = 'default'" >> $(DJANGO_SETTINGS_BASE_FILE)
+	@echo "INSTALLED_APPS.append('allauth')" >> $(DJANGO_SETTINGS_BASE_FILE)
+	@echo "INSTALLED_APPS.append('allauth.account')" >> $(DJANGO_SETTINGS_BASE_FILE)
+	@echo "INSTALLED_APPS.append('allauth.socialaccount')" >> $(DJANGO_SETTINGS_BASE_FILE)
+	@echo "INSTALLED_APPS.append('crispy_bootstrap5')" >> $(DJANGO_SETTINGS_BASE_FILE)
+	@echo "INSTALLED_APPS.append('crispy_forms')" >> $(DJANGO_SETTINGS_BASE_FILE)
+	@echo "INSTALLED_APPS.append('debug_toolbar')" >> $(DJANGO_SETTINGS_BASE_FILE)
+	@echo "INSTALLED_APPS.append('django_extensions')" >> $(DJANGO_SETTINGS_BASE_FILE)
+	@echo "INSTALLED_APPS.append('django_recaptcha')" >> $(DJANGO_SETTINGS_BASE_FILE)
+	@echo "INSTALLED_APPS.append('rest_framework')" >> $(DJANGO_SETTINGS_BASE_FILE)
+	@echo "INSTALLED_APPS.append('rest_framework.authtoken')" >> $(DJANGO_SETTINGS_BASE_FILE)
+	@echo "INSTALLED_APPS.append('webpack_boilerplate')" >> $(DJANGO_SETTINGS_BASE_FILE)
+	@echo "INSTALLED_APPS.append('explorer')  # noqa" >> $(DJANGO_SETTINGS_BASE_FILE)
+	@echo "LOGIN_REDIRECT_URL = '/'" >> $(DJANGO_SETTINGS_BASE_FILE)
+	@echo "MIDDLEWARE.append('allauth.account.middleware.AccountMiddleware')" >> $(DJANGO_SETTINGS_BASE_FILE)
+	@echo "PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))" >> $(DJANGO_SETTINGS_BASE_FILE)
+	@echo "SILENCED_SYSTEM_CHECKS = ['django_recaptcha.recaptcha_test_key_error']" >> $(DJANGO_SETTINGS_BASE_FILE)
+	@echo "BASE_DIR = os.path.dirname(PROJECT_DIR)" >> $(DJANGO_SETTINGS_BASE_FILE)
+	@echo "STATICFILES_DIRS = []" >> $(DJANGO_SETTINGS_BASE_FILE)
+	@echo "STATICFILES_DIRS.append(os.path.join(BASE_DIR, 'frontend/build'))" >> $(DJANGO_SETTINGS_BASE_FILE)
+	@echo "TEMPLATES[0]['DIRS'].append(os.path.join(PROJECT_DIR, 'templates'))" >> $(DJANGO_SETTINGS_BASE_FILE)
+	@echo "WEBPACK_LOADER = { 'MANIFEST_FILE': os.path.join(BASE_DIR, 'frontend/build/manifest.json'), }" >> $(DJANGO_SETTINGS_BASE_FILE)
+
+
+django-settings-dev-minimal-default:
+	@echo "# $(PROJECT_NAME)" > $(DJANGO_SETTINGS_DEV_FILE)
+	@echo "$$DJANGO_SETTINGS_DEV" >> backend/settings/dev.py
+	@echo "$$INTERNAL_IPS" >> $(DJANGO_SETTINGS_DEV_FILE)
+	@echo "INSTALLED_APPS.append('django.contrib.admindocs')  # noqa" >> $(DJANGO_SETTINGS_DEV_FILE)
+	@echo "MIDDLEWARE.append('debug_toolbar.middleware.DebugToolbarMiddleware')  # noqa" >> $(DJANGO_SETTINGS_DEV_FILE)
+	@SECRET_KEY=$$(openssl rand -base64 48); echo "SECRET_KEY = '$$SECRET_KEY'" >> $(DJANGO_SETTINGS_DEV_FILE)
+	-$(GIT_ADD) $(DJANGO_SETTINGS_DEV_FILE)
 
 django-settings-dev-default:
-	@echo "# $(PROJECT_NAME)" > $(DJANGO_SETTINGS_FILE_DEV)
+	@echo "# $(PROJECT_NAME)" > $(DJANGO_SETTINGS_DEV_FILE)
 	@echo "$$DJANGO_SETTINGS_DEV" >> backend/settings/dev.py
-	@echo "$$INTERNAL_IPS" >> $(DJANGO_SETTINGS_FILE_DEV)
-	@echo "INSTALLED_APPS.append('django.contrib.admindocs')  # noqa" >> $(DJANGO_SETTINGS_FILE_DEV)
-	@echo "INSTALLED_APPS.append('explorer')  # noqa" >> $(DJANGO_SETTINGS_FILE_DEV)
-	@echo "MIDDLEWARE.append('debug_toolbar.middleware.DebugToolbarMiddleware')  # noqa" >> $(DJANGO_SETTINGS_FILE_DEV)
-	@echo "MIDDLEWARE.append('hijack.middleware.HijackUserMiddleware')  # noqa" >> $(DJANGO_SETTINGS_FILE_DEV)
-	@SECRET_KEY=$$(openssl rand -base64 48); echo "SECRET_KEY = '$$SECRET_KEY'" >> $(DJANGO_SETTINGS_FILE_DEV)
+	@echo "$$INTERNAL_IPS" >> $(DJANGO_SETTINGS_DEV_FILE)
+	@echo "INSTALLED_APPS.append('django.contrib.admindocs')  # noqa" >> $(DJANGO_SETTINGS_DEV_FILE)
+	@echo "MIDDLEWARE.append('debug_toolbar.middleware.DebugToolbarMiddleware')  # noqa" >> $(DJANGO_SETTINGS_DEV_FILE)
+	@echo "MIDDLEWARE.append('hijack.middleware.HijackUserMiddleware')  # noqa" >> $(DJANGO_SETTINGS_DEV_FILE)
+	@SECRET_KEY=$$(openssl rand -base64 48); echo "SECRET_KEY = '$$SECRET_KEY'" >> $(DJANGO_SETTINGS_DEV_FILE)
+	-$(GIT_ADD) $(DJANGO_SETTINGS_DEV_FILE)
 
 django-settings-prod-default:
-	@echo "$$DJANGO_SETTINGS_PROD" > $(DJANGO_SETTINGS_FILE_PROD)
+	@echo "$$DJANGO_SETTINGS_PROD" > $(DJANGO_SETTINGS_PROD_FILE)
+	-$(GIT_ADD) $(DJANGO_SETTINGS_PROD_FILE)
 
 django-crispy-default:
-	@echo "CRISPY_TEMPLATE_PACK = 'bootstrap5'" >> $(DJANGO_SETTINGS_FILE_BASE)
-	@echo "CRISPY_ALLOWED_TEMPLATE_PACKS = 'bootstrap5'" >> $(DJANGO_SETTINGS_FILE_BASE)
+	@echo "CRISPY_TEMPLATE_PACK = 'bootstrap5'" >> $(DJANGO_SETTINGS_BASE_FILE)
+	@echo "CRISPY_ALLOWED_TEMPLATE_PACKS = 'bootstrap5'" >> $(DJANGO_SETTINGS_BASE_FILE)
 
 django-shell-default:
 	python manage.py shell
@@ -3649,6 +3725,12 @@ git-commit-alpha-sort-default:
 
 git-commit-clean-up-default:
 	git commit -a -m "Clean up"
+
+git-commit-lint-default:
+	git commit -a -m "Lint"
+
+git-commit-upgrade-default:
+	git commit -a -m "Upgrade"
 
 git-commit-default:
 	-@$(GIT_COMMIT)
@@ -3776,8 +3858,8 @@ plone-build-default:
 	buildout
 
 custom-makefile-default:
-	@echo "$$CUSTOM_MAKEFILE" > $(CUSTOM_MAKEFILE_NAME)
-	-$(GIT_ADD) $(CUSTOM_MAKEFILE_NAME)
+	@echo "$$MAKEFILE_CUSTOM" > $(MAKEFILE_CUSTOM_FILE)
+	-$(GIT_ADD) $(MAKEFILE_CUSTOM_FILE)
 
 programming-interview-default:
 	@echo "$$PROGRAMMING_INTERVIEW" > interview.py
@@ -3915,22 +3997,21 @@ wagtail-search-default:
 	-$(GIT_ADD) search/*.py
 
 wagtail-settings-default:
-	@echo "INSTALLED_APPS.append('wagtailmenus')" >> $(DJANGO_SETTINGS_FILE_BASE)
-	@echo "INSTALLED_APPS.append('wagtailmarkdown')" >> $(DJANGO_SETTINGS_FILE_BASE)
-	@echo "INSTALLED_APPS.append('wagtail_modeladmin')" >> $(DJANGO_SETTINGS_FILE_BASE)
-	@echo "INSTALLED_APPS.append('wagtailseo')" >> $(DJANGO_SETTINGS_FILE_BASE)
-	@echo "INSTALLED_APPS.append('wagtail_color_panel')" >> $(DJANGO_SETTINGS_FILE_BASE)
-	@echo "INSTALLED_APPS.append('wagtail.contrib.settings')" >> $(DJANGO_SETTINGS_FILE_BASE)
-	@echo "TEMPLATES[0]['OPTIONS']['context_processors'].append('wagtail.contrib.settings.context_processors.settings')" >> $(DJANGO_SETTINGS_FILE_BASE)
-	@echo "TEMPLATES[0]['OPTIONS']['context_processors'].append('wagtailmenus.context_processors.wagtailmenus')">> $(DJANGO_SETTINGS_FILE_BASE)
-
+	@echo "INSTALLED_APPS.append('wagtailmenus')" >> $(DJANGO_SETTINGS_BASE_FILE)
+	@echo "INSTALLED_APPS.append('wagtailmarkdown')" >> $(DJANGO_SETTINGS_BASE_FILE)
+	@echo "INSTALLED_APPS.append('wagtail_modeladmin')" >> $(DJANGO_SETTINGS_BASE_FILE)
+	@echo "INSTALLED_APPS.append('wagtailseo')" >> $(DJANGO_SETTINGS_BASE_FILE)
+	@echo "INSTALLED_APPS.append('wagtail_color_panel')" >> $(DJANGO_SETTINGS_BASE_FILE)
+	@echo "INSTALLED_APPS.append('wagtail.contrib.settings')" >> $(DJANGO_SETTINGS_BASE_FILE)
+	@echo "TEMPLATES[0]['OPTIONS']['context_processors'].append('wagtail.contrib.settings.context_processors.settings')" >> $(DJANGO_SETTINGS_BASE_FILE)
+	@echo "TEMPLATES[0]['OPTIONS']['context_processors'].append('wagtailmenus.context_processors.wagtailmenus')">> $(DJANGO_SETTINGS_BASE_FILE)
 
 wagtail-privacy-default:
 	python manage.py startapp privacy
 	@echo "$$PRIVACY_PAGE_MODEL" > privacy/models.py
 	$(ADD_DIR) privacy/templates
 	@echo "$$PRIVACY_PAGE_TEMPLATE" > privacy/templates/privacy_page.html
-	@echo "INSTALLED_APPS.append('privacy')" >> $(DJANGO_SETTINGS_FILE_BASE)
+	@echo "INSTALLED_APPS.append('privacy')" >> $(DJANGO_SETTINGS_BASE_FILE)
 	python manage.py makemigrations privacy
 	-$(GIT_ADD) privacy/templates
 	-$(GIT_ADD) privacy/*.py
@@ -3956,8 +4037,8 @@ wagtail-home-default:
 	@echo "$$WAGTAIL_HOME_PAGE_MODEL" > home/models.py
 	@echo "$$WAGTAIL_HOME_PAGE_TEMPLATE" > home/templates/home/home_page.html
 	$(ADD_DIR) home/templates/blocks
-	@echo "$$BLOCK_MARKETING" > home/templates/blocks/marketing_block.html
-	@echo "$$BLOCK_CAROUSEL" > home/templates/blocks/carousel_block.html
+	@echo "$$WAGTAIL_BLOCK_MARKETING" > home/templates/blocks/marketing_block.html
+	@echo "$$WAGTAIL_BLOCK_CAROUSEL" > home/templates/blocks/carousel_block.html
 	-$(GIT_ADD) home/templates
 	-$(GIT_ADD) home/*.py
 	python manage.py makemigrations home
@@ -4020,12 +4101,12 @@ webpack-reveal-init-default: npm-init
 
 wagtail-contactpage-default:
 	python manage.py startapp contactpage
-	@echo "$$CONTACT_PAGE_MODEL" > contactpage/models.py
-	@echo "$$CONTACT_PAGE_TEST" > contactpage/tests.py
+	@echo "$$WAGTAIL_CONTACT_PAGE_MODEL" > contactpage/models.py
+	@echo "$$WAGTAIL_CONTACT_PAGE_TEST" > contactpage/tests.py
 	$(ADD_DIR) contactpage/templates/contactpage/
-	@echo "$$CONTACT_PAGE_TEMPLATE" > contactpage/templates/contactpage/contact_page.html
-	@echo "$$CONTACT_PAGE_LANDING" > contactpage/templates/contactpage/contact_page_landing.html
-	@echo "INSTALLED_APPS.append('contactpage')" >> $(DJANGO_SETTINGS_FILE_BASE)
+	@echo "$$WAGTAIL_CONTACT_PAGE_TEMPLATE" > contactpage/templates/contactpage/contact_page.html
+	@echo "$$WAGTAIL_CONTACT_PAGE_LANDING" > contactpage/templates/contactpage/contact_page_landing.html
+	@echo "INSTALLED_APPS.append('contactpage')" >> $(DJANGO_SETTINGS_BASE_FILE)
 	python manage.py makemigrations contactpage
 	-$(GIT_ADD) contactpage/templates
 	-$(GIT_ADD) contactpage/*.py
@@ -4036,7 +4117,7 @@ wagtail-sitepage-default:
 	@echo "$$SITEPAGE_MODEL" > sitepage/models.py
 	$(ADD_DIR) sitepage/templates/sitepage/
 	@echo "$$SITEPAGE_TEMPLATE" > sitepage/templates/sitepage/site_page.html
-	@echo "INSTALLED_APPS.append('sitepage')" >> $(DJANGO_SETTINGS_FILE_BASE)
+	@echo "INSTALLED_APPS.append('sitepage')" >> $(DJANGO_SETTINGS_BASE_FILE)
 	python manage.py makemigrations sitepage
 	-$(GIT_ADD) sitepage/templates
 	-$(GIT_ADD) sitepage/*.py
@@ -4046,18 +4127,22 @@ wagtail-sitepage-default:
 # More rules
 # ------------------------------------------------------------------------------  
 
-as-default: git-commit-alpha-sort git-push
 b-default: build
 build-default: pip-install
 c-default: clean
 ce-default: git-commit-edit-push
-cu-default: git-commit-clean-up git-push
 clean-default: wagtail-clean
+cp-alpha-sort-default: git-commit-alpha-sort git-push
+cp-as-default: git-commit-alpha-sort git-push
+cp-clean-up-default: git-commit-clean-up git-push
 cp-default: git-commit-push
+cp-lint-default: git-commit-lint git-push
+cp-upgrade-default: git-commit-upgrade git-push
 create-default: eb-create
 d-default: deploy
-db-import-default: db-pg-import
+db-dump-default: eb-pg-export
 db-export-default: eb-pg-export
+db-import-default: db-pg-import
 db-init-default: db-pg-init
 db-init-test-default: db-pg-init-test
 db-shell-default: django-db-shell
@@ -4068,9 +4153,13 @@ djlint-default: lint-djlint
 e-default: edit
 eb-env-default: eb-print-env
 eb-export-default: eb-pg-export
+eb-up-default: eb-upgrade
 edit-default: readme-edit-md
 empty-default: git-commit-empty
+error-default: html-error
 force-push-default: git-push-force
+force: git-push-force
+fp-default: git-push-force
 freeze-default: pip-freeze
 git-commit-edit-push-default: git-commit-edit git-push
 git-commit-push-default: git-commit git-push
@@ -4079,22 +4168,19 @@ gitignore-default: git-ignore
 h-default: help
 i-default: install
 index-default: html-index
-last-default: git-commit-last
-license-default: python-license
-error-default: html-error
-eb-up-default: eb-upgrade
-force: git-push-force
 init-default: django-wagtail-init
 install-default: pip-install
 install-dev-default: pip-install-dev
 install-test-default: pip-install-test
 l-default: lint
+last-default: git-commit-last
+license-default: python-license
 logs-default: eb-logs
+m-default: django-migrate
 migrate-default: django-migrate
 migrations-default: django-migrations
 migrations-show-default: django-migrations-show
 mk-default: custom-makefile
-m-default: django-migrate
 o-default: open
 open-default: django-open
 p-default: git-push
@@ -4109,14 +4195,14 @@ sdist-default: python-setup-sdist
 secret-default: django-secret-key
 serve-default: django-serve
 shell-default: django-shell
-show-urls-default: django-show-urls
 show-migrations-default: migrations-show
+show-urls-default: django-show-urls
 ssm-list-default: aws-ssm
 static-default: django-static
 su-default: django-su
 test-default: django-test
 u-default: usage
-up-default: eb-upgrade
+upgrade-default: pip-install-upgrade
 urls-default: django-show-urls
 wagtail-init-default: django-wagtail-init
 webpack-default: webpack-init
