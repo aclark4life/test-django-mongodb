@@ -1,6 +1,6 @@
 # Testing Django with MongoDB 
 
-- Via https://github.com/mongodb-labs/django-mongodb
+- Via https://github.com/aclark4life/django-mongodb
 
 # Screenshots
 
