@@ -1,66 +1,17 @@
 # Project Makefile
 #
-# A generic makefile for Python projects
+# A makefile to automate setup of a Wagtail CMS project and related tasks.
 #
 # https://github.com/aclark4life/project-makefile
-
-# --------------------------------------------------------------------------------
-# Variables (override)
-# --------------------------------------------------------------------------------
 #
-.DEFAULT_GOAL := git-commit-push
-DATABASE_AWK = awk -F\= '{print $$2}'
-DATABASE_HOST = $(shell $(GET_DATABASE_URL) | $(DATABASE_AWK) |\
-    python -c 'import dj_database_url; url = input(); url = dj_database_url.parse(url); print(url["HOST"])')
-DATABASE_NAME = $(shell $(GET_DATABASE_URL) | $(DATABASE_AWK) |\
-    python -c 'import dj_database_url; url = input(); url = dj_database_url.parse(url); print(url["NAME"])')
-DATABASE_PASS = $(shell $(GET_DATABASE_URL) | $(DATABASE_AWK) |\
-    python -c 'import dj_database_url; url = input(); url = dj_database_url.parse(url); print(url["PASSWORD"])')
-DATABASE_USER = $(shell $(GET_DATABASE_URL) | $(DATABASE_AWK) |\
-    python -c 'import dj_database_url; url = input(); url = dj_database_url.parse(url); print(url["USER"])')
-DJANGO_BACKEND_APPS_FILE := backend/apps.py
-DJANGO_CUSTOM_ADMIN_FILE := backend/admin.py
-DJANGO_FRONTEND_FILES = frontend .babelrc .browserslistrc .eslintrc .nvmrc .stylelintrc.json package-lock.json package.json postcss.config.js
-DJANGO_SETTINGS_DIR = backend/settings
-DJANGO_SETTINGS_BASE_FILE = $(DJANGO_SETTINGS_DIR)/base.py
-DJANGO_SETTINGS_DEV_FILE = $(DJANGO_SETTINGS_DIR)/dev.py
-DJANGO_SETTINGS_PROD_FILE = $(DJANGO_SETTINGS_DIR)/production.py
-ENV_NAME ?= $(PROJECT_NAME)-$(GIT_BRANCH)-$(GIT_REV)
-GET_DATABASE_URL = eb ssh -c "source /opt/elasticbeanstalk/deployment/custom_env_var;\
-    env | grep DATABASE_URL"
-GIT_BRANCH = $(shell git branch --show-current)
-GIT_BRANCHES = $(shell git branch -a) 
-GIT_COMMIT = git commit -a -m $(GIT_MESSAGE)
-GIT_MESSAGE = "Update $(PROJECT_NAME)"
-GIT_PUSH = git push
-GIT_PUSH_FORCE = git push --force-with-lease
-GIT_REV = $(shell git rev-parse --short HEAD)
-INSTANCE_MAX ?= 1
-INSTANCE_MIN ?= 1
-INSTANCE_PROFILE ?= aws-elasticbeanstalk-ec2-role
-INSTANCE_TYPE ?= t4g.small
-LB_TYPE ?= application
-MAKEFILE_CUSTOM_FILE := project.mk
-PACKAGE_NAME = $(shell echo $(PROJECT_NAME) | sed 's/-/_/g')
-PAGER ?= less
-PLATFORM ?= "Python 3.11 running on 64bit Amazon Linux 2023"
-PLONE_CONSTRAINTS = https://dist.plone.org/release/6.0.11.1/constraints.txt
-PROJECT_DIRS = backend contactpage home privacy siteuser
-PROJECT_EMAIL := aclark@aclark.net
-PROJECT_NAME = project-makefile
-RANDIR := $(shell openssl rand -base64 12 | sed 's/\///g')
-REVIEW_EDITOR = subl
-TMPDIR := $(shell mktemp -d)
-UNAME := $(shell uname)
-WAGTAIL_CLEAN_DIRS = home search backend sitepage siteuser privacy frontend contactpage model_form_demo logging_demo payments node_modules
-WAGTAIL_CLEAN_FILES = README.rst README.md .dockerignore Dockerfile manage.py requirements.txt requirements-test.txt docker-compose.yml .babelrc .browserslistrc .eslintrc .gitignore .nvmrc .stylelintrc.json package-lock.json package.json postcss.config.js
+# --------------------------------------------------------------------------------
+# Set the default goal to be `git commit -a -m $(GIT_MESSAGE)` and `git push`
+# --------------------------------------------------------------------------------
 
-ifneq ($(wildcard $(MAKEFILE_CUSTOM_FILE)),)
-    include $(MAKEFILE_CUSTOM_FILE)
-endif
+.DEFAULT_GOAL := git-commit-push
 
 # --------------------------------------------------------------------------------
-# Variables (no override)
+# Single line variables to be used by phony target rules
 # --------------------------------------------------------------------------------
 
 ADD_DIR := mkdir -pv
@@ -70,40 +21,68 @@ COPY_DIR := cp -rv
 COPY_FILE := cp -v
 DEL_DIR := rm -rv
 DEL_FILE := rm -v
-EB_DIR = .elasticbeanstalk
-ENSURE_PIP := python -m ensurepip
+DJANGO_DB_COL = awk -F\= '{print $$2}'
+DJANGO_DB_URL = eb ssh -c "source /opt/elasticbeanstalk/deployment/custom_env_var; env | grep DATABASE_URL"
+DJANGO_DB_HOST = $(shell $(DJANGO_DB_URL) | $(DJANGO_DB_COL) |\
+	python -c 'import dj_database_url; url = input(); url = dj_database_url.parse(url); print(url["HOST"])')
+DJANGO_DB_NAME = $(shell $(DJANGO_DB_URL) | $(DJANGO_DB_COL) |\
+	python -c 'import dj_database_url; url = input(); url = dj_database_url.parse(url); print(url["NAME"])')
+DJANGO_DB_PASS = $(shell $(DJANGO_DB_URL) | $(DJANGO_DB_COL) |\
+	python -c 'import dj_database_url; url = input(); url = dj_database_url.parse(url); print(url["PASSWORD"])')
+DJANGO_DB_USER = $(shell $(DJANGO_DB_URL) | $(DJANGO_DB_COL) |\
+	python -c 'import dj_database_url; url = input(); url = dj_database_url.parse(url); print(url["USER"])')
+DJANGO_BACKEND_APPS_FILE := backend/apps.py
+DJANGO_CUSTOM_ADMIN_FILE := backend/admin.py
+DJANGO_FRONTEND_FILES = .babelrc .browserslistrc .eslintrc .nvmrc .stylelintrc.json frontend package-lock.json \
+	package.json postcss.config.js
+DJANGO_SETTINGS_DIR = backend/settings
+DJANGO_SETTINGS_BASE_FILE = $(DJANGO_SETTINGS_DIR)/base.py
+DJANGO_SETTINGS_DEV_FILE = $(DJANGO_SETTINGS_DIR)/dev.py
+DJANGO_SETTINGS_PROD_FILE = $(DJANGO_SETTINGS_DIR)/production.py
+EB_DIR_NAME := .elasticbeanstalk
+EB_ENV_NAME ?= $(PROJECT_NAME)-$(GIT_BRANCH)-$(GIT_REV)
+EB_PLATFORM ?= "Python 3.11 running on 64bit Amazon Linux 2023"
+EC2_INSTANCE_MAX ?= 1
+EC2_INSTANCE_MIN ?= 1
+EC2_INSTANCE_PROFILE ?= aws-elasticbeanstalk-ec2-role
+EC2_INSTANCE_TYPE ?= t4g.small
+EC2_LB_TYPE ?= application
+EDITOR_REVIEW = subl
 GIT_ADD := git add
+GIT_BRANCH = $(shell git branch --show-current)
+GIT_BRANCHES = $(shell git branch -a) 
+GIT_COMMIT = git commit -a -m $(GIT_MESSAGE)
+GIT_MESSAGE = "Update $(PROJECT_NAME)"
+GIT_PUSH = git push
+GIT_PUSH_FORCE = git push --force-with-lease
+GIT_REV = $(shell git rev-parse --short HEAD)
+MAKEFILE_CUSTOM_FILE := project.mk
+PACKAGE_NAME = $(shell echo $(PROJECT_NAME) | sed 's/-/_/g')
+PAGER ?= less
+PIP_ENSURE = python -m ensurepip
+PIP_CONSTRAINTS_PLONE = https://dist.plone.org/release/6.0.11.1/constraints.txt
+PROJECT_DIRS = backend contactpage home privacy siteuser
+PROJECT_EMAIL := aclark@aclark.net
+PROJECT_NAME = project-makefile
+RANDIR := $(shell openssl rand -base64 12 | sed 's/\///g')
+TMPDIR := $(shell mktemp -d)
+UNAME := $(shell uname)
+WAGTAIL_CLEAN_DIRS = home search backend sitepage siteuser privacy frontend contactpage model_form_demo logging_demo payments node_modules
+WAGTAIL_CLEAN_FILES = .dockerignore Dockerfile manage.py requirements.txt requirements-test.txt docker-compose.yml .babelrc .browserslistrc .eslintrc .gitignore .nvmrc .stylelintrc.json package-lock.json package.json postcss.config.js
 
 # --------------------------------------------------------------------------------
-# Multi-line variables
+# Include $(MAKEFILE_CUSTOM_FILE) if it exists
 # --------------------------------------------------------------------------------
 
-define ALLAUTH_LAYOUT_BASE
-{% extends 'base.html' %}
-endef
+ifneq ($(wildcard $(MAKEFILE_CUSTOM_FILE)),)
+    include $(MAKEFILE_CUSTOM_FILE)
+endif
 
-define BABELRC
-{
-  "presets": [
-    [
-      "@babel/preset-react",
-    ],
-    [
-      "@babel/preset-env",
-      {
-        "useBuiltIns": "usage",
-        "corejs": "3.0.0"
-      }
-    ]
-  ],
-  "plugins": [
-    "@babel/plugin-syntax-dynamic-import",
-    "@babel/plugin-transform-class-properties"
-  ]
-}
-endef
+# --------------------------------------------------------------------------------
+# Multi-line variables to be used in phony target rules
+# --------------------------------------------------------------------------------
 
-define CUSTOM_ENV_VAR_FILE
+define EB_CUSTOM_ENV_VAR_FILE
 #!/bin/bash
 
 # Via https://aws.amazon.com/premiumsupport/knowledge-center/elastic-beanstalk-env-variables-linux2/
@@ -124,7 +103,7 @@ EOF
 rm -f /opt/elasticbeanstalk/deployment/*.bak
 endef
 
-define CUSTOM_ENV_EC2_USER
+define EB_CUSTOM_ENV_EC2_USER
 files:
     "/home/ec2-user/.bashrc":
         mode: "000644"
@@ -142,6 +121,303 @@ files:
             set -o vi
 
             source <(sed -E -n 's/[^#]+/export &/ p' /opt/elasticbeanstalk/deployment/custom_env_var)
+endef
+
+define DJANGO_ALLAUTH_LAYOUT_BASE
+{% extends 'base.html' %}
+endef
+
+define DJANGO_AUTHENTICATION_BACKENDS
+AUTHENTICATION_BACKENDS = [
+    'django.contrib.auth.backends.ModelBackend',
+    'allauth.account.auth_backends.AuthenticationBackend',
+]
+endef
+
+define DJANGO_BACKEND_APPS
+from django.contrib.admin.apps import AdminConfig
+
+class CustomAdminConfig(AdminConfig):
+    default_site = "backend.admin.CustomAdminSite"
+endef
+
+define DJANGO_BASE_TEMPLATE
+{% load static webpack_loader %}
+
+<!DOCTYPE html>
+<html lang="en" class="h-100" data-bs-theme="{{ request.user.user_theme_preference|default:'light' }}">
+    <head>
+        <meta charset="utf-8" />
+        <title>
+            {% block title %}
+            {% endblock %}
+            {% block title_suffix %}
+            {% endblock %}
+        </title>
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+        {% stylesheet_pack 'app' %}
+
+        {% block extra_css %}
+        {# Override this in templates to add extra stylesheets #}
+        {% endblock %}
+
+        <style>
+          .success {
+              background-color: #d4edda;
+              border-color: #c3e6cb;
+              color: #155724;
+          }
+          .info {
+              background-color: #d1ecf1;
+              border-color: #bee5eb;
+              color: #0c5460;
+          }
+          .warning {
+              background-color: #fff3cd;
+              border-color: #ffeeba;
+              color: #856404;
+          }
+          .danger {
+              background-color: #f8d7da;
+              border-color: #f5c6cb;
+              color: #721c24;
+          }
+        </style>
+        {% include 'favicon.html' %}
+        {% csrf_token %}
+    </head>
+    <body class="{% block body_class %}{% endblock %} d-flex flex-column h-100">
+        <main class="flex-shrink-0">
+            <div id="app"></div>
+            {% include 'header.html' %}
+            {% if messages %}
+                <div class="messages container">
+                    {% for message in messages %}
+                        <div class="alert {{ message.tags }} alert-dismissible fade show"
+                             role="alert">
+                            {{ message }}
+                            <button type="button"
+                                    class="btn-close"
+                                    data-bs-dismiss="alert"
+                                    aria-label="Close"></button>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+            <div class="container">
+                {% block content %}{% endblock %}
+            </div>
+        </main>
+        {% include 'footer.html' %}
+        {% include 'offcanvas.html' %}
+        {% javascript_pack 'app' %}
+        {% block extra_js %}
+        {# Override this in templates to add extra javascript #}
+        {% endblock %}
+    </body>
+</html>
+endef
+
+define DJANGO_CUSTOM_ADMIN
+# admin.py
+from django.contrib.admin import AdminSite
+
+class CustomAdminSite(AdminSite):
+    site_header = 'Project Makefile'
+    site_title = 'Project Makefile'
+    index_title = 'Project Makefile'
+
+custom_admin_site = CustomAdminSite(name='custom_admin')
+endef
+
+define DJANGO_DOCKERFILE
+FROM amazonlinux:2023
+RUN dnf install -y shadow-utils python3.11 python3.11-pip make nodejs20-npm nodejs postgresql15 postgresql15-server
+USER postgres
+RUN initdb -D /var/lib/pgsql/data
+USER root
+RUN useradd wagtail
+EXPOSE 8000
+ENV PYTHONUNBUFFERED=1 PORT=8000
+COPY requirements.txt /
+RUN python3.11 -m pip install -r /requirements.txt
+WORKDIR /app
+RUN chown wagtail:wagtail /app
+COPY --chown=wagtail:wagtail . .
+USER wagtail
+RUN npm-20 install; npm-20 run build
+RUN python3.11 manage.py collectstatic --noinput --clear
+CMD set -xe; pg_ctl -D /var/lib/pgsql/data -l /tmp/logfile start; python3.11 manage.py migrate --noinput; gunicorn backend.wsgi:application
+endef
+
+define DJANGO_DOCKERCOMPOSE
+version: '3'
+
+services:
+  db:
+    image: postgres:latest
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: project
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin
+
+  web:
+    build: .
+    command: sh -c "python manage.py migrate && gunicorn project.wsgi:application -b 0.0.0.0:8000"
+    volumes:
+      - .:/app
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+    environment:
+      DATABASE_URL: postgres://admin:admin@db:5432/project
+
+volumes:
+  postgres_data:
+endef
+
+define DJANGO_FAVICON_TEMPLATE
+{% load static %}
+<link href="{% static 'wagtailadmin/images/favicon.ico' %}" rel="icon">
+endef
+
+define DJANGO_FOOTER_TEMPLATE
+  <footer class="footer mt-auto py-3 bg-body-tertiary pt-5 text-center text-small">
+    <p class="mb-1">&copy; {% now "Y" %} {{ current_site.site_name|default:"Project Makefile" }}</p>
+    <ul class="list-inline">
+      <li class="list-inline-item"><a class="text-secondary text-decoration-none {% if request.path == '/' %}active{% endif %}" href="/">Home</a></li>
+      {% for child in current_site.root_page.get_children %}
+          <li class="list-inline-item"><a class="text-secondary text-decoration-none {% if request.path == child.url %}active{% endif %}" href="{{ child.url }}">{{ child }}</a></li>
+      {% endfor %}
+    </ul>
+  </footer>
+endef
+
+define DJANGO_FRONTEND_APP
+import React from 'react';
+import { createRoot } from 'react-dom/client';
+import 'bootstrap';
+import '@fortawesome/fontawesome-free/js/fontawesome';
+import '@fortawesome/fontawesome-free/js/solid';
+import '@fortawesome/fontawesome-free/js/regular';
+import '@fortawesome/fontawesome-free/js/brands';
+import getDataComponents from '../dataComponents';
+import UserContextProvider from '../context';
+import * as components from '../components';
+import "../styles/index.scss";
+import "../styles/theme-blue.scss";
+import "./config";
+
+const { ErrorBoundary } = components;
+const dataComponents = getDataComponents(components);
+const container = document.getElementById('app');
+const root = createRoot(container);
+const App = () => (
+    <ErrorBoundary>
+      <UserContextProvider>
+        {dataComponents}
+      </UserContextProvider>
+    </ErrorBoundary>
+);
+root.render(<App />);
+endef
+
+define DJANGO_FRONTEND_APP_CONFIG
+import '../utils/themeToggler.js';
+// import '../utils/tinymce.js';
+endef
+
+define DJANGO_FRONTEND_BABELRC
+{
+  "presets": [
+    [
+      "@babel/preset-react",
+    ],
+    [
+      "@babel/preset-env",
+      {
+        "useBuiltIns": "usage",
+        "corejs": "3.0.0"
+      }
+    ]
+  ],
+  "plugins": [
+    "@babel/plugin-syntax-dynamic-import",
+    "@babel/plugin-transform-class-properties"
+  ]
+}
+endef
+
+define DJANGO_FRONTEND_COMPONENTS
+export { default as ErrorBoundary } from './ErrorBoundary';
+export { default as UserMenu } from './UserMenu';
+endef
+
+define DJANGO_FRONTEND_CONTEXT_INDEX
+export { UserContextProvider as default } from './UserContextProvider';
+endef
+
+define DJANGO_FRONTEND_CONTEXT_USER_PROVIDER
+// UserContextProvider.js
+import React, { createContext, useContext, useState } from 'react';
+import PropTypes from 'prop-types';
+
+const UserContext = createContext();
+
+export const UserContextProvider = ({ children }) => {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+  const login = () => {
+    try {
+      // Add logic to handle login, set isAuthenticated to true
+      setIsAuthenticated(true);
+    } catch (error) {
+      console.error('Login error:', error);
+      // Handle error, e.g., show an error message to the user
+    }
+  };
+
+  const logout = () => {
+    try {
+      // Add logic to handle logout, set isAuthenticated to false
+      setIsAuthenticated(false);
+    } catch (error) {
+      console.error('Logout error:', error);
+      // Handle error, e.g., show an error message to the user
+    }
+  };
+
+  return (
+    <UserContext.Provider value={{ isAuthenticated, login, logout }}>
+      {children}
+    </UserContext.Provider>
+  );
+};
+
+UserContextProvider.propTypes = {
+  children: PropTypes.node.isRequired,
+};
+
+export const useUserContext = () => {
+  const context = useContext(UserContext);
+
+  if (!context) {
+    throw new Error('useUserContext must be used within a UserContextProvider');
+  }
+
+  return context;
+};
+
+// Add PropTypes for the return value of useUserContext
+useUserContext.propTypes = {
+  isAuthenticated: PropTypes.bool.isRequired,
+  login: PropTypes.func.isRequired,
+  logout: PropTypes.func.isRequired,
+};
 endef
 
 define DJANGO_FRONTEND_COMPONENT_CLOCK
@@ -281,59 +557,98 @@ UserMenu.propTypes = {
 export default UserMenu;
 endef
 
-define DJANGO_AUTHENTICATION_BACKENDS
-AUTHENTICATION_BACKENDS = [
-    'django.contrib.auth.backends.ModelBackend',
-    'allauth.account.auth_backends.AuthenticationBackend',
-]
+define DJANGO_FRONTEND_ESLINTRC
+{
+    "env": {
+        "browser": true,
+        "es2021": true,
+        "node": true
+    },
+    "extends": [
+        "eslint:recommended",
+        "plugin:react/recommended"
+    ],
+    "overrides": [
+        {
+            "env": {
+                "node": true
+            },
+            "files": [
+                ".eslintrc.{js,cjs}"
+            ],
+            "parserOptions": {
+                "sourceType": "script"
+            }
+        }
+    ],
+    "parserOptions": {
+        "ecmaVersion": "latest",
+        "sourceType": "module"
+    },
+    "plugins": [
+        "react"
+    ],
+    "rules": {
+        "no-unused-vars": "off"
+    },
+    settings: {
+      react: {
+        version: 'detect',
+      },
+    },
+}
 endef
 
-define DJANGO_BACKEND_APPS
-from django.contrib.admin.apps import AdminConfig
-
-class CustomAdminConfig(AdminConfig):
-    default_site = "backend.admin.CustomAdminSite"
+define DJANGO_FRONTEND_OFFCANVAS_TEMPLATE
+<div class="offcanvas offcanvas-start bg-dark" tabindex="-1" id="offcanvasExample" aria-labelledby="offcanvasExampleLabel">
+  <div class="offcanvas-header">
+    <a class="offcanvas-title text-light h5 text-decoration-none" id="offcanvasExampleLabel" href="/">{{ current_site.site_name|default:"Project Makefile" }}</a>
+    <button type="button" class="btn-close bg-light" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+  </div>
+  <div class="offcanvas-body bg-dark">
+    <ul class="navbar-nav justify-content-end flex-grow-1 pe-3">
+      <li class="nav-item">
+        <a class="nav-link text-light active" aria-current="page" href="/">Home</a>
+      </li>
+      {% for child in current_site.root_page.get_children %}
+      <li class="nav-item">
+        <a class="nav-link text-light" href="{{ child.url }}">{{ child }}</a>
+      </li>
+      {% endfor %}
+      <li class="nav-item" id="{% if request.user.is_authenticated %}theme-toggler-authenticated{% else %}theme-toggler-anonymous{% endif %}">
+          <span class="nav-link text-light" data-bs-toggle="tooltip" title="Toggle dark mode">
+              <i class="fas fa-circle-half-stroke"></i>
+          </span>
+      </li>
+      <div data-component="UserMenu" data-text-color="light" data-is-authenticated="{{ request.user.is_authenticated }}" data-is-superuser="{{ request.user.is_superuser }}"></div>
+    </ul>
+  </div>
+</div>
 endef
 
-define DJANGO_CUSTOM_ADMIN
-# admin.py
-from django.contrib.admin import AdminSite
+define DJANGO_FRONTEND_STYLES
+// If you comment out code below, bootstrap will use red as primary color
+// and btn-primary will become red
 
-class CustomAdminSite(AdminSite):
-    site_header = 'Project Makefile'
-    site_title = 'Project Makefile'
-    index_title = 'Project Makefile'
+// $primary: red;
 
-custom_admin_site = CustomAdminSite(name='custom_admin')
-endef
+@import "~bootstrap/scss/bootstrap.scss";
 
-define DJANGO_HOME_PAGE_VIEWS
-from django.views.generic import TemplateView
+.jumbotron {
+  // should be relative path of the entry scss file
+  background-image: url("../../vendors/images/sample.jpg");
+  background-size: cover;
+}
 
-class HomeView(TemplateView):
-    template_name = "home.html"
-endef
+#theme-toggler-authenticated:hover {
+    cursor: pointer; /* Change cursor to pointer on hover */
+    color: #007bff; /* Change color on hover */
+}
 
-define DJANGO_HOME_PAGE_URLS
-from django.urls import path
-from .views import HomeView
-
-urlpatterns = [
-    path("", HomeView.as_view(), name="home")
-]
-endef
-
-define DJANGO_HOME_PAGE_TEMPLATE
-{% extends "base.html" %}
-{% block content %}
-    <main class="{% block main_class %}{% endblock %}">
-    </main>
-{% endblock %}
-endef
-
-define DJANGO_FRONTEND_APP_CONFIG
-import '../utils/themeToggler.js';
-// import '../utils/tinymce.js';
+#theme-toggler-anonymous:hover {
+    cursor: pointer; /* Change cursor to pointer on hover */
+    color: #007bff; /* Change color on hover */
+}
 endef
 
 define DJANGO_FRONTEND_PORTAL
@@ -393,234 +708,81 @@ export default function getPageComponents (components) {
 }
 endef
 
-define DJANGO_FRONTEND_COMPONENTS
-export { default as ErrorBoundary } from './ErrorBoundary';
-export { default as UserMenu } from './UserMenu';
-endef
-
-define DJANGO_FRONTEND_CONTEXT_INDEX
-export { UserContextProvider as default } from './UserContextProvider';
-endef
-
-define DJANGO_FRONTEND_CONTEXT_USER_PROVIDER
-// UserContextProvider.js
-import React, { createContext, useContext, useState } from 'react';
-import PropTypes from 'prop-types';
-
-const UserContext = createContext();
-
-export const UserContextProvider = ({ children }) => {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-
-  const login = () => {
-    try {
-      // Add logic to handle login, set isAuthenticated to true
-      setIsAuthenticated(true);
-    } catch (error) {
-      console.error('Login error:', error);
-      // Handle error, e.g., show an error message to the user
-    }
-  };
-
-  const logout = () => {
-    try {
-      // Add logic to handle logout, set isAuthenticated to false
-      setIsAuthenticated(false);
-    } catch (error) {
-      console.error('Logout error:', error);
-      // Handle error, e.g., show an error message to the user
-    }
-  };
-
-  return (
-    <UserContext.Provider value={{ isAuthenticated, login, logout }}>
-      {children}
-    </UserContext.Provider>
-  );
-};
-
-UserContextProvider.propTypes = {
-  children: PropTypes.node.isRequired,
-};
-
-export const useUserContext = () => {
-  const context = useContext(UserContext);
-
-  if (!context) {
-    throw new Error('useUserContext must be used within a UserContextProvider');
-  }
-
-  return context;
-};
-
-// Add PropTypes for the return value of useUserContext
-useUserContext.propTypes = {
-  isAuthenticated: PropTypes.bool.isRequired,
-  login: PropTypes.func.isRequired,
-  logout: PropTypes.func.isRequired,
-};
-endef
-
-define DJANGO_FRONTEND_STYLES
-// If you comment out code below, bootstrap will use red as primary color
-// and btn-primary will become red
-
-// $primary: red;
-
+define DJANGO_FRONTEND_THEME_BLUE
 @import "~bootstrap/scss/bootstrap.scss";
 
-.jumbotron {
-  // should be relative path of the entry scss file
-  background-image: url("../../vendors/images/sample.jpg");
-  background-size: cover;
+[data-bs-theme="blue"] {
+  --bs-body-color: var(--bs-white);
+  --bs-body-color-rgb: #{to-rgb($$white)};
+  --bs-body-bg: var(--bs-blue);
+  --bs-body-bg-rgb: #{to-rgb($$blue)};
+  --bs-tertiary-bg: #{$$blue-600};
+
+  .dropdown-menu {
+    --bs-dropdown-bg: #{color-mix($$blue-500, $$blue-600)};
+    --bs-dropdown-link-active-bg: #{$$blue-700};
+  }
+
+  .btn-secondary {
+    --bs-btn-bg: #{color-mix($gray-600, $blue-400, .5)};
+    --bs-btn-border-color: #{rgba($$white, .25)};
+    --bs-btn-hover-bg: #{color-adjust(color-mix($gray-600, $blue-400, .5), 5%)};
+    --bs-btn-hover-border-color: #{rgba($$white, .25)};
+    --bs-btn-active-bg: #{color-adjust(color-mix($gray-600, $blue-400, .5), 10%)};
+    --bs-btn-active-border-color: #{rgba($$white, .5)};
+    --bs-btn-focus-border-color: #{rgba($$white, .5)};
+
+    // --bs-btn-focus-box-shadow: 0 0 0 .25rem rgba(255, 255, 255, 20%);
+  }
 }
-
-#theme-toggler-authenticated:hover {
-    cursor: pointer; /* Change cursor to pointer on hover */
-    color: #007bff; /* Change color on hover */
-}
-
-#theme-toggler-anonymous:hover {
-    cursor: pointer; /* Change cursor to pointer on hover */
-    color: #007bff; /* Change color on hover */
-}
 endef
 
-define DJANGO_FRONTEND_APP
-import React from 'react';
-import { createRoot } from 'react-dom/client';
-import 'bootstrap';
-import '@fortawesome/fontawesome-free/js/fontawesome';
-import '@fortawesome/fontawesome-free/js/solid';
-import '@fortawesome/fontawesome-free/js/regular';
-import '@fortawesome/fontawesome-free/js/brands';
-import getDataComponents from '../dataComponents';
-import UserContextProvider from '../context';
-import * as components from '../components';
-import "../styles/index.scss";
-import "../styles/theme-blue.scss";
-import "./config";
-
-const { ErrorBoundary } = components;
-const dataComponents = getDataComponents(components);
-const container = document.getElementById('app');
-const root = createRoot(container);
-const App = () => (
-    <ErrorBoundary>
-      <UserContextProvider>
-        {dataComponents}
-      </UserContextProvider>
-    </ErrorBoundary>
-);
-root.render(<App />);
+define DJANGO_FRONTEND_THEME_TOGGLER
+document.addEventListener('DOMContentLoaded', function () {
+    const rootElement = document.documentElement;
+    const anonThemeToggle = document.getElementById('theme-toggler-anonymous');
+    const authThemeToggle = document.getElementById('theme-toggler-authenticated');
+    if (authThemeToggle) {
+        localStorage.removeItem('data-bs-theme');
+    }
+    const anonSavedTheme = localStorage.getItem('data-bs-theme');
+    if (anonSavedTheme) {
+        rootElement.setAttribute('data-bs-theme', anonSavedTheme);
+    }
+    if (anonThemeToggle) {
+        anonThemeToggle.addEventListener('click', function () {
+            const currentTheme = rootElement.getAttribute('data-bs-theme') || 'light';
+            const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+            rootElement.setAttribute('data-bs-theme', newTheme);
+            localStorage.setItem('data-bs-theme', newTheme);
+        });
+    }
+    if (authThemeToggle) {
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        authThemeToggle.addEventListener('click', function () {
+            const currentTheme = rootElement.getAttribute('data-bs-theme') || 'light';
+            const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+            fetch('/user/update_theme_preference/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken, // Include the CSRF token in the headers
+                },
+                body: JSON.stringify({ theme: newTheme }),
+            })
+            .then(response => response.json())
+            .then(data => {
+                rootElement.setAttribute('data-bs-theme', newTheme);
+            })
+            .catch(error => {
+                console.error('Error updating theme preference:', error);
+            });
+        });
+    }
+});
 endef
 
-define DJANGO_HTML_OFFCANVAS
-<div class="offcanvas offcanvas-start bg-dark" tabindex="-1" id="offcanvasExample" aria-labelledby="offcanvasExampleLabel">
-  <div class="offcanvas-header">
-    <a class="offcanvas-title text-light h5 text-decoration-none" id="offcanvasExampleLabel" href="/">{{ current_site.site_name|default:"Project Makefile" }}</a>
-    <button type="button" class="btn-close bg-light" data-bs-dismiss="offcanvas" aria-label="Close"></button>
-  </div>
-  <div class="offcanvas-body bg-dark">
-    <ul class="navbar-nav justify-content-end flex-grow-1 pe-3">
-      <li class="nav-item">
-        <a class="nav-link text-light active" aria-current="page" href="/">Home</a>
-      </li>
-      {% for child in current_site.root_page.get_children %}
-      <li class="nav-item">
-        <a class="nav-link text-light" href="{{ child.url }}">{{ child }}</a>
-      </li>
-      {% endfor %}
-      <li class="nav-item" id="{% if request.user.is_authenticated %}theme-toggler-authenticated{% else %}theme-toggler-anonymous{% endif %}">
-          <span class="nav-link text-light" data-bs-toggle="tooltip" title="Toggle dark mode">
-              <i class="fas fa-circle-half-stroke"></i>
-          </span>
-      </li>
-      <div data-component="UserMenu" data-text-color="light" data-is-authenticated="{{ request.user.is_authenticated }}" data-is-superuser="{{ request.user.is_superuser }}"></div>
-    </ul>
-  </div>
-</div>
-endef
-
-define DJANGO_BASE_TEMPLATE
-{% load static webpack_loader %}
-
-<!DOCTYPE html>
-<html lang="en" class="h-100" data-bs-theme="{{ request.user.user_theme_preference|default:'light' }}">
-    <head>
-        <meta charset="utf-8" />
-        <title>
-            {% block title %}
-            {% endblock %}
-            {% block title_suffix %}
-            {% endblock %}
-        </title>
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-
-        {% stylesheet_pack 'app' %}
-
-        {% block extra_css %}
-        {# Override this in templates to add extra stylesheets #}
-        {% endblock %}
-
-        <style>
-          .success {
-              background-color: #d4edda;
-              border-color: #c3e6cb;
-              color: #155724;
-          }
-          .info {
-              background-color: #d1ecf1;
-              border-color: #bee5eb;
-              color: #0c5460;
-          }
-          .warning {
-              background-color: #fff3cd;
-              border-color: #ffeeba;
-              color: #856404;
-          }
-          .danger {
-              background-color: #f8d7da;
-              border-color: #f5c6cb;
-              color: #721c24;
-          }
-        </style>
-        {% include 'favicon.html' %}
-        {% csrf_token %}
-    </head>
-    <body class="{% block body_class %}{% endblock %} d-flex flex-column h-100">
-        <main class="flex-shrink-0">
-            <div id="app"></div>
-            {% include 'header.html' %}
-            {% if messages %}
-                <div class="messages container">
-                    {% for message in messages %}
-                        <div class="alert {{ message.tags }} alert-dismissible fade show"
-                             role="alert">
-                            {{ message }}
-                            <button type="button"
-                                    class="btn-close"
-                                    data-bs-dismiss="alert"
-                                    aria-label="Close"></button>
-                        </div>
-                    {% endfor %}
-                </div>
-            {% endif %}
-            <div class="container">
-                {% block content %}{% endblock %}
-            </div>
-        </main>
-        {% include 'footer.html' %}
-        {% include 'offcanvas.html' %}
-        {% javascript_pack 'app' %}
-        {% block extra_js %}
-        {# Override this in templates to add extra javascript #}
-        {% endblock %}
-    </body>
-</html>
-endef
-
-define DJANGO_HEADER
+define DJANGO_HEADER_TEMPLATE
 <div class="app-header">
     <div class="container py-4 app-navbar">
         <nav class="navbar navbar-transparent navbar-padded navbar-expand-md">
@@ -680,16 +842,90 @@ define DJANGO_HEADER
 </div>
 endef 
 
-define DJANGO_FOOTER
-  <footer class="footer mt-auto py-3 bg-body-tertiary pt-5 text-center text-small">
-    <p class="mb-1">&copy; {% now "Y" %} {{ current_site.site_name|default:"Project Makefile" }}</p>
-    <ul class="list-inline">
-      <li class="list-inline-item"><a class="text-secondary text-decoration-none {% if request.path == '/' %}active{% endif %}" href="/">Home</a></li>
-      {% for child in current_site.root_page.get_children %}
-          <li class="list-inline-item"><a class="text-secondary text-decoration-none {% if request.path == child.url %}active{% endif %}" href="{{ child.url }}">{{ child }}</a></li>
-      {% endfor %}
-    </ul>
-  </footer>
+define DJANGO_HOME_PAGE_VIEWS
+from django.views.generic import TemplateView
+
+class HomeView(TemplateView):
+    template_name = "home.html"
+endef
+
+define DJANGO_HOME_PAGE_URLS
+from django.urls import path
+from .views import HomeView
+
+urlpatterns = [
+    path("", HomeView.as_view(), name="home")
+]
+endef
+
+define DJANGO_HOME_PAGE_TEMPLATE
+{% extends "base.html" %}
+{% block content %}
+    <main class="{% block main_class %}{% endblock %}">
+    </main>
+{% endblock %}
+endef
+
+define DJANGO_LOGGING_DEMO_VIEWS
+from django.http import HttpResponse
+import logging
+
+# Get an instance of a logger
+logger = logging.getLogger(__name__)
+
+def logging_demo(request):
+    logger.debug('Hello, world!')
+    return HttpResponse("Hello, world!")
+endef
+
+define DJANGO_LOGGING_DEMO_URLS
+from django.urls import path
+from .views import logging_demo
+
+urlpatterns = [
+    path('', logging_demo, name='logging_demo'),
+]
+endef
+
+define DJANGO_LOGGING_DEMO_SETTINGS
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+        },
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': 'DEBUG',
+    },
+}
+endef
+
+define DJANGO_MANAGE_PY
+#!/usr/bin/env python
+"""Django's command-line utility for administrative tasks."""
+import os
+import sys
+
+
+def main():
+    """Run administrative tasks."""
+    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "backend.settings.dev")
+    try:
+        from django.core.management import execute_from_command_line
+    except ImportError as exc:
+        raise ImportError(
+            "Couldn't import Django. Are you sure it's installed and "
+            "available on your PYTHONPATH environment variable? Did you "
+            "forget to activate a virtual environment?"
+        ) from exc
+    execute_from_command_line(sys.argv)
+
+
+if __name__ == "__main__":
+    main()
 endef
 
 define DJANGO_MODEL_FORM_DEMO_MODEL
@@ -816,6 +1052,253 @@ urlpatterns = [
     path('<int:pk>/update/', ModelFormDemoUpdateView.as_view(), name='model_form_demo_update'),
     path('<int:pk>/', ModelFormDemoDetailView.as_view(), name='model_form_demo_detail'),
 ]
+endef
+
+define DJANGO_PAYMENTS_ADMIN
+from django.contrib import admin
+from .models import Product, Order
+
+admin.site.register(Product)
+admin.site.register(Order)
+endef
+
+define DJANGO_PAYMENTS_FORM
+# forms.py
+
+from django import forms
+
+class PaymentsForm(forms.Form):
+    stripeToken = forms.CharField(widget=forms.HiddenInput())
+    amount = forms.DecimalField(max_digits=10, decimal_places=2, widget=forms.HiddenInput())
+endef
+
+define DJANGO_PAYMENTS_MIGRATION_0002
+from django.db import migrations
+import os
+import secrets
+import logging
+
+logger = logging.getLogger(__name__)
+
+def generate_default_key():
+    return 'sk_test_' + secrets.token_hex(24)
+
+def set_stripe_api_keys(apps, schema_editor):
+    # Get the Stripe API Key model
+    APIKey = apps.get_model('djstripe', 'APIKey')
+
+    # Fetch the keys from environment variables or generate default keys
+    test_secret_key = os.environ.get('STRIPE_TEST_SECRET_KEY', generate_default_key())
+    live_secret_key = os.environ.get('STRIPE_LIVE_SECRET_KEY', generate_default_key())
+
+    logger.info("STRIPE_TEST_SECRET_KEY: %s", test_secret_key)
+    logger.info("STRIPE_LIVE_SECRET_KEY: %s", live_secret_key)
+
+    # Check if the keys are not already in the database
+    if not APIKey.objects.filter(secret=test_secret_key).exists():
+        APIKey.objects.create(secret=test_secret_key, livemode=False)
+        logger.info("Added test secret key to the database.")
+    else:
+        logger.info("Test secret key already exists in the database.")
+
+    if not APIKey.objects.filter(secret=live_secret_key).exists():
+        APIKey.objects.create(secret=live_secret_key, livemode=True)
+        logger.info("Added live secret key to the database.")
+    else:
+        logger.info("Live secret key already exists in the database.")
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ('payments', '0001_initial'),
+    ]
+
+    operations = [
+        migrations.RunPython(set_stripe_api_keys),
+    ]
+
+endef
+
+define DJANGO_PAYMENTS_MIGRATION_0003
+from django.db import migrations
+
+def create_initial_products(apps, schema_editor):
+    Product = apps.get_model('payments', 'Product')
+    Product.objects.create(name='T-shirt', description='A cool T-shirt', price=20.00)
+    Product.objects.create(name='Mug', description='A nice mug', price=10.00)
+    Product.objects.create(name='Hat', description='A stylish hat', price=15.00)
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ('payments', '0002_set_stripe_api_keys'),  # Adjust this to match your initial migration file
+    ]
+
+    operations = [
+        migrations.RunPython(create_initial_products),
+    ]
+endef
+
+define DJANGO_PAYMENTS_MODELS
+from django.db import models
+
+class Product(models.Model):
+    name = models.CharField(max_length=100)
+    description = models.TextField()
+    price = models.DecimalField(max_digits=10, decimal_places=2)
+
+    def __str__(self):
+        return self.name
+
+class Order(models.Model):
+    product = models.ForeignKey(Product, on_delete=models.CASCADE)
+    created_at = models.DateTimeField(auto_now_add=True)
+    stripe_checkout_session_id = models.CharField(max_length=200)
+
+    def __str__(self):
+        return f"Order {self.id} for {self.product.name}"
+endef
+
+define DJANGO_PAYMENTS_URLS
+from django.urls import path
+from .views import CheckoutView, SuccessView, CancelView, ProductListView, ProductDetailView
+
+urlpatterns = [
+    path('', ProductListView.as_view(), name='product_list'),
+    path('product/<int:pk>/', ProductDetailView.as_view(), name='product_detail'),
+    path('checkout/', CheckoutView.as_view(), name='checkout'),
+    path('success/', SuccessView.as_view(), name='success'),
+    path('cancel/', CancelView.as_view(), name='cancel'),
+]
+endef
+
+define DJANGO_PAYMENTS_VIEW
+from django.conf import settings
+from django.shortcuts import render, redirect, get_object_or_404
+from django.views.generic import TemplateView, View, ListView, DetailView
+import stripe
+from .models import Product, Order
+
+stripe.api_key = settings.STRIPE_TEST_SECRET_KEY
+
+class ProductListView(ListView):
+    model = Product
+    template_name = 'payments/product_list.html'
+    context_object_name = 'products'
+
+class ProductDetailView(DetailView):
+    model = Product
+    template_name = 'payments/product_detail.html'
+    context_object_name = 'product'
+
+class CheckoutView(View):
+    template_name = 'payments/checkout.html'
+
+    def get(self, request, *args, **kwargs):
+        products = Product.objects.all()
+        return render(request, self.template_name, {'products': products})
+
+    def post(self, request, *args, **kwargs):
+        product_id = request.POST.get('product_id')
+        product = get_object_or_404(Product, id=product_id)
+        
+        session = stripe.checkout.Session.create(
+            payment_method_types=['card'],
+            line_items=[{
+                'price_data': {
+                    'currency': 'usd',
+                    'product_data': {
+                        'name': product.name,
+                    },
+                    'unit_amount': int(product.price * 100),
+                },
+                'quantity': 1,
+            }],
+            mode='payment',
+            success_url='http://localhost:8000/payments/success/',
+            cancel_url='http://localhost:8000/payments/cancel/',
+        )
+
+        Order.objects.create(product=product, stripe_checkout_session_id=session.id)
+        return redirect(session.url, code=303)
+
+class SuccessView(TemplateView):
+
+    template_name = 'payments/success.html'
+
+class CancelView(TemplateView):
+
+    template_name = 'payments/cancel.html'
+endef
+
+define DJANGO_PAYMENTS_TEMPLATE_CANCEL
+{% extends "base.html" %}
+
+{% block title %}Cancel{% endblock %}
+
+{% block content %}
+<h1>Payment Cancelled</h1>
+<p>Your payment was cancelled.</p>
+{% endblock %}
+endef
+
+define DJANGO_PAYMENTS_TEMPLATE_CHECKOUT
+{% extends "base.html" %}
+
+{% block title %}Checkout{% endblock %}
+
+{% block content %}
+<h1>Checkout</h1>
+<form action="{% url 'checkout' %}" method="post">
+    {% csrf_token %}
+    <button type="submit">Pay</button>
+</form>
+{% endblock %}
+endef
+
+define DJANGO_PAYMENTS_TEMPLATE_SUCCESS
+{% extends "base.html" %}
+
+{% block title %}Success{% endblock %}
+
+{% block content %}
+<h1>Payment Successful</h1>
+<p>Thank you for your purchase!</p>
+{% endblock %}
+endef
+
+define DJANGO_PAYMENTS_TEMPLATE_PRODUCT_DETAIL
+{% extends "base.html" %}
+
+{% block title %}{{ product.name }}{% endblock %}
+
+{% block content %}
+<h1>{{ product.name }}</h1>
+<p>{{ product.description }}</p>
+<p>Price: ${{ product.price }}</p>
+<form action="{% url 'checkout' %}" method="post">
+    {% csrf_token %}
+    <input type="hidden" name="product_id" value="{{ product.id }}">
+    <button type="submit">Buy Now</button>
+</form>
+{% endblock %}
+endef
+
+define DJANGO_PAYMENTS_TEMPLATE_PRODUCT_LIST
+{% extends "base.html" %}
+
+{% block title %}Products{% endblock %}
+
+{% block content %}
+<h1>Products</h1>
+<ul>
+    {% for product in products %}
+    <li>
+        <a href="{% url 'product_detail' product.pk %}">{{ product.name }} - {{ product.price }}</a>
+    </li>
+    {% endfor %}
+</ul>
+{% endblock %}
 endef
 
 define DJANGO_REST_SERIALIZERS
@@ -988,6 +1471,10 @@ LOGGING = {
 }
 endef
 
+define DJANGO_SETTINGS_DEV_INTERNAL_IPS
+INTERNAL_IPS = ["127.0.0.1",]
+endef
+
 define DJANGO_SETTINGS_PROD
 from .base import *  # noqa
 from backend.utils import get_ec2_metadata
@@ -1013,29 +1500,11 @@ REST_FRAMEWORK = {
 }
 endef
 
-define DJANGO_MANAGE_PY
-#!/usr/bin/env python
-"""Django's command-line utility for administrative tasks."""
-import os
-import sys
-
-
-def main():
-    """Run administrative tasks."""
-    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "backend.settings.dev")
-    try:
-        from django.core.management import execute_from_command_line
-    except ImportError as exc:
-        raise ImportError(
-            "Couldn't import Django. Are you sure it's installed and "
-            "available on your PYTHONPATH environment variable? Did you "
-            "forget to activate a virtual environment?"
-        ) from exc
-    execute_from_command_line(sys.argv)
-
-
-if __name__ == "__main__":
-    main()
+define DJANGO_SETTINGS_THEMES
+THEMES = [
+    ('light', 'Light Theme'),
+    ('dark', 'Dark Theme'),
+]
 endef
 
 define DJANGO_SITEUSER_ADMIN
@@ -1170,6 +1639,7 @@ class UserEditView(LoginRequiredMixin, UpdateView):
         # return reverse_lazy('user-profile', kwargs={'pk': self.object.pk})
         return reverse_lazy('user-profile')
 endef
+
 define DJANGO_URLS
 from django.contrib import admin
 from django.urls import path, include
@@ -1224,102 +1694,6 @@ def remove_urlpattern(urlpatterns, route_to_remove):
     )]
 endef
 
-define DOCKERFILE
-FROM amazonlinux:2023
-RUN dnf install -y shadow-utils python3.11 python3.11-pip make nodejs20-npm nodejs postgresql15 postgresql15-server
-USER postgres
-RUN initdb -D /var/lib/pgsql/data
-USER root
-RUN useradd wagtail
-EXPOSE 8000
-ENV PYTHONUNBUFFERED=1 PORT=8000
-COPY requirements.txt /
-RUN python3.11 -m pip install -r /requirements.txt
-WORKDIR /app
-RUN chown wagtail:wagtail /app
-COPY --chown=wagtail:wagtail . .
-USER wagtail
-RUN npm-20 install; npm-20 run build
-RUN python3.11 manage.py collectstatic --noinput --clear
-CMD set -xe; pg_ctl -D /var/lib/pgsql/data -l /tmp/logfile start; python3.11 manage.py migrate --noinput; gunicorn backend.wsgi:application
-endef
-
-define DOCKERCOMPOSE
-version: '3'
-
-services:
-  db:
-    image: postgres:latest
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    environment:
-      POSTGRES_DB: project
-      POSTGRES_USER: admin
-      POSTGRES_PASSWORD: admin
-
-  web:
-    build: .
-    command: sh -c "python manage.py migrate && gunicorn project.wsgi:application -b 0.0.0.0:8000"
-    volumes:
-      - .:/app
-    ports:
-      - "8000:8000"
-    depends_on:
-      - db
-    environment:
-      DATABASE_URL: postgres://admin:admin@db:5432/project
-
-volumes:
-  postgres_data:
-endef
-
-define ESLINTRC
-{
-    "env": {
-        "browser": true,
-        "es2021": true,
-        "node": true
-    },
-    "extends": [
-        "eslint:recommended",
-        "plugin:react/recommended"
-    ],
-    "overrides": [
-        {
-            "env": {
-                "node": true
-            },
-            "files": [
-                ".eslintrc.{js,cjs}"
-            ],
-            "parserOptions": {
-                "sourceType": "script"
-            }
-        }
-    ],
-    "parserOptions": {
-        "ecmaVersion": "latest",
-        "sourceType": "module"
-    },
-    "plugins": [
-        "react"
-    ],
-    "rules": {
-        "no-unused-vars": "off"
-    },
-    settings: {
-      react: {
-        version: 'detect',
-      },
-    },
-}
-endef
-
-define FAVICON_TEMPLATE
-{% load static %}
-<link href="{% static 'wagtailadmin/images/favicon.ico' %}" rel="icon">
-endef
-
 define GIT_IGNORE
 __pycache__
 *.pyc
@@ -1339,10 +1713,6 @@ define HTML_ERROR
 <h1>500</h1>
 endef
 
-define INTERNAL_IPS
-INTERNAL_IPS = ["127.0.0.1",]
-endef
-
 define JENKINS_FILE
 pipeline {
     agent any
@@ -1356,43 +1726,6 @@ pipeline {
 }
 endef
 
-define LOGGING_DEMO_VIEWS
-from django.http import HttpResponse
-import logging
-
-# Get an instance of a logger
-logger = logging.getLogger(__name__)
-
-def logging_demo(request):
-    logger.debug('Hello, world!')
-    return HttpResponse("Hello, world!")
-endef
-
-define LOGGING_DEMO_URLS
-from django.urls import path
-from .views import logging_demo
-
-urlpatterns = [
-    path('', logging_demo, name='logging_demo'),
-]
-endef
-
-define LOGGING_DEMO_SETTINGS
-LOGGING = {
-    'version': 1,
-    'disable_existing_loggers': False,
-    'handlers': {
-        'console': {
-            'class': 'logging.StreamHandler',
-        },
-    },
-    'root': {
-        'handlers': ['console'],
-        'level': 'DEBUG',
-    },
-}
-endef
-
 define MAKEFILE_CUSTOM
 # Custom Makefile
 # Add your custom makefile commands here
@@ -1400,280 +1733,18 @@ define MAKEFILE_CUSTOM
 # PROJECT_NAME := my-new-project
 endef
 
-define PRIVACY_PAGE_MODEL
-from wagtail.models import Page
-from wagtail.admin.panels import FieldPanel
-from wagtailmarkdown.fields import MarkdownField
-
-
-class PrivacyPage(Page):
-    """
-    A Wagtail Page model for the Privacy Policy page.
-    """
-
-    template = "privacy_page.html"
-
-    body = MarkdownField()
-
-    content_panels = Page.content_panels + [
-        FieldPanel("body", classname="full"),
-    ]
-
-    class Meta:
-        verbose_name = "Privacy Page"
-endef
-
-define PRIVACY_PAGE_TEMPLATE
-{% extends 'base.html' %}
-{% load wagtailmarkdown %}
-{% block content %}<div class="container">{{ page.body|markdown }}</div>{% endblock %}
-endef
-
-define PAYMENTS_ADMIN
-from django.contrib import admin
-from .models import Product, Order
-
-admin.site.register(Product)
-admin.site.register(Order)
-endef
-
-define PAYMENTS_FORM
-# forms.py
-
-from django import forms
-
-class PaymentsForm(forms.Form):
-    stripeToken = forms.CharField(widget=forms.HiddenInput())
-    amount = forms.DecimalField(max_digits=10, decimal_places=2, widget=forms.HiddenInput())
-endef
-
-define PAYMENTS_MIGRATION_0002
-from django.db import migrations
-import os
-import secrets
-import logging
-
-logger = logging.getLogger(__name__)
-
-def generate_default_key():
-    return 'sk_test_' + secrets.token_hex(24)
-
-def set_stripe_api_keys(apps, schema_editor):
-    # Get the Stripe API Key model
-    APIKey = apps.get_model('djstripe', 'APIKey')
-
-    # Fetch the keys from environment variables or generate default keys
-    test_secret_key = os.environ.get('STRIPE_TEST_SECRET_KEY', generate_default_key())
-    live_secret_key = os.environ.get('STRIPE_LIVE_SECRET_KEY', generate_default_key())
-
-    logger.info("STRIPE_TEST_SECRET_KEY: %s", test_secret_key)
-    logger.info("STRIPE_LIVE_SECRET_KEY: %s", live_secret_key)
-
-    # Check if the keys are not already in the database
-    if not APIKey.objects.filter(secret=test_secret_key).exists():
-        APIKey.objects.create(secret=test_secret_key, livemode=False)
-        logger.info("Added test secret key to the database.")
-    else:
-        logger.info("Test secret key already exists in the database.")
-
-    if not APIKey.objects.filter(secret=live_secret_key).exists():
-        APIKey.objects.create(secret=live_secret_key, livemode=True)
-        logger.info("Added live secret key to the database.")
-    else:
-        logger.info("Live secret key already exists in the database.")
-
-class Migration(migrations.Migration):
-
-    dependencies = [
-        ('payments', '0001_initial'),
-    ]
-
-    operations = [
-        migrations.RunPython(set_stripe_api_keys),
-    ]
-
-endef
-
-define PAYMENTS_MIGRATION_0003
-from django.db import migrations
-
-def create_initial_products(apps, schema_editor):
-    Product = apps.get_model('payments', 'Product')
-    Product.objects.create(name='T-shirt', description='A cool T-shirt', price=20.00)
-    Product.objects.create(name='Mug', description='A nice mug', price=10.00)
-    Product.objects.create(name='Hat', description='A stylish hat', price=15.00)
-
-class Migration(migrations.Migration):
-
-    dependencies = [
-        ('payments', '0002_set_stripe_api_keys'),  # Adjust this to match your initial migration file
-    ]
-
-    operations = [
-        migrations.RunPython(create_initial_products),
-    ]
-endef
-
-define PAYMENTS_MODELS
-from django.db import models
-
-class Product(models.Model):
-    name = models.CharField(max_length=100)
-    description = models.TextField()
-    price = models.DecimalField(max_digits=10, decimal_places=2)
-
-    def __str__(self):
-        return self.name
-
-class Order(models.Model):
-    product = models.ForeignKey(Product, on_delete=models.CASCADE)
-    created_at = models.DateTimeField(auto_now_add=True)
-    stripe_checkout_session_id = models.CharField(max_length=200)
-
-    def __str__(self):
-        return f"Order {self.id} for {self.product.name}"
-endef
-
-define PAYMENTS_URLS
-from django.urls import path
-from .views import CheckoutView, SuccessView, CancelView, ProductListView, ProductDetailView
-
-urlpatterns = [
-    path('', ProductListView.as_view(), name='product_list'),
-    path('product/<int:pk>/', ProductDetailView.as_view(), name='product_detail'),
-    path('checkout/', CheckoutView.as_view(), name='checkout'),
-    path('success/', SuccessView.as_view(), name='success'),
-    path('cancel/', CancelView.as_view(), name='cancel'),
-]
-endef
-
-define PAYMENTS_VIEW
-from django.conf import settings
-from django.shortcuts import render, redirect, get_object_or_404
-from django.views.generic import TemplateView, View, ListView, DetailView
-import stripe
-from .models import Product, Order
-
-stripe.api_key = settings.STRIPE_TEST_SECRET_KEY
-
-class ProductListView(ListView):
-    model = Product
-    template_name = 'payments/product_list.html'
-    context_object_name = 'products'
-
-class ProductDetailView(DetailView):
-    model = Product
-    template_name = 'payments/product_detail.html'
-    context_object_name = 'product'
-
-class CheckoutView(View):
-    template_name = 'payments/checkout.html'
-
-    def get(self, request, *args, **kwargs):
-        products = Product.objects.all()
-        return render(request, self.template_name, {'products': products})
-
-    def post(self, request, *args, **kwargs):
-        product_id = request.POST.get('product_id')
-        product = get_object_or_404(Product, id=product_id)
-        
-        session = stripe.checkout.Session.create(
-            payment_method_types=['card'],
-            line_items=[{
-                'price_data': {
-                    'currency': 'usd',
-                    'product_data': {
-                        'name': product.name,
-                    },
-                    'unit_amount': int(product.price * 100),
-                },
-                'quantity': 1,
-            }],
-            mode='payment',
-            success_url='http://localhost:8000/payments/success/',
-            cancel_url='http://localhost:8000/payments/cancel/',
-        )
-
-        Order.objects.create(product=product, stripe_checkout_session_id=session.id)
-        return redirect(session.url, code=303)
-
-class SuccessView(TemplateView):
-
-    template_name = 'payments/success.html'
-
-class CancelView(TemplateView):
-
-    template_name = 'payments/cancel.html'
-endef
-
-define PAYMENTS_TEMPLATE_CANCEL
-{% extends "base.html" %}
-
-{% block title %}Cancel{% endblock %}
-
-{% block content %}
-<h1>Payment Cancelled</h1>
-<p>Your payment was cancelled.</p>
-{% endblock %}
-endef
-
-define PAYMENTS_TEMPLATE_CHECKOUT
-{% extends "base.html" %}
-
-{% block title %}Checkout{% endblock %}
-
-{% block content %}
-<h1>Checkout</h1>
-<form action="{% url 'checkout' %}" method="post">
-    {% csrf_token %}
-    <button type="submit">Pay</button>
-</form>
-{% endblock %}
-endef
-
-define PAYMENTS_TEMPLATE_SUCCESS
-{% extends "base.html" %}
-
-{% block title %}Success{% endblock %}
-
-{% block content %}
-<h1>Payment Successful</h1>
-<p>Thank you for your purchase!</p>
-{% endblock %}
-endef
-
-define PAYMENTS_TEMPLATE_PRODUCT_DETAIL
-{% extends "base.html" %}
-
-{% block title %}{{ product.name }}{% endblock %}
-
-{% block content %}
-<h1>{{ product.name }}</h1>
-<p>{{ product.description }}</p>
-<p>Price: ${{ product.price }}</p>
-<form action="{% url 'checkout' %}" method="post">
-    {% csrf_token %}
-    <input type="hidden" name="product_id" value="{{ product.id }}">
-    <button type="submit">Buy Now</button>
-</form>
-{% endblock %}
-endef
-
-define PAYMENTS_TEMPLATE_PRODUCT_LIST
-{% extends "base.html" %}
-
-{% block title %}Products{% endblock %}
-
-{% block content %}
-<h1>Products</h1>
-<ul>
-    {% for product in products %}
-    <li>
-        <a href="{% url 'product_detail' product.pk %}">{{ product.name }} - {{ product.price }}</a>
-    </li>
-    {% endfor %}
-</ul>
-{% endblock %}
+define PIP_INSTALL_REQUIREMENTS_TEST
+pytest
+pytest-runner
+coverage
+pytest-mock
+pytest-cov
+hypothesis
+selenium
+pytest-django
+factory-boy
+flake8
+tox
 endef
 
 define PROGRAMMING_INTERVIEW
@@ -2168,20 +2239,6 @@ define PYTHON_PROJECT_TOML
 [build-system]
 endef
 
-define REQUIREMENTS_TEST
-pytest
-pytest-runner
-coverage
-pytest-mock
-pytest-cov
-hypothesis
-selenium
-pytest-django
-factory-boy
-flake8
-tox
-endef
-
 define SEPARATOR
 .==========================================================================================================================================.
 |                                                                                                                                          |  
@@ -2193,106 +2250,6 @@ define SEPARATOR
 |                               _|                                                                                                         |
 |                             _|                                                                                                           |
 `=========================================================================================================================================='
-endef
-
-define SITEPAGE_MODEL
-from wagtail.models import Page
-
-
-class SitePage(Page):
-    template = "sitepage/site_page.html"
-
-    class Meta:
-        verbose_name = "Site Page"
-endef
-
-define DJANGO_SETTINGS_THEMES
-THEMES = [
-    ('light', 'Light Theme'),
-    ('dark', 'Dark Theme'),
-]
-endef
-
-
-define SITEPAGE_TEMPLATE
-{% extends 'base.html' %}
-{% block content %}
-    <h1>{{ page.title }}</h1>
-{% endblock %}
-endef
-
-define THEME_BLUE
-@import "~bootstrap/scss/bootstrap.scss";
-
-[data-bs-theme="blue"] {
-  --bs-body-color: var(--bs-white);
-  --bs-body-color-rgb: #{to-rgb($$white)};
-  --bs-body-bg: var(--bs-blue);
-  --bs-body-bg-rgb: #{to-rgb($$blue)};
-  --bs-tertiary-bg: #{$$blue-600};
-
-  .dropdown-menu {
-    --bs-dropdown-bg: #{color-mix($$blue-500, $$blue-600)};
-    --bs-dropdown-link-active-bg: #{$$blue-700};
-  }
-
-  .btn-secondary {
-    --bs-btn-bg: #{color-mix($gray-600, $blue-400, .5)};
-    --bs-btn-border-color: #{rgba($$white, .25)};
-    --bs-btn-hover-bg: #{color-adjust(color-mix($gray-600, $blue-400, .5), 5%)};
-    --bs-btn-hover-border-color: #{rgba($$white, .25)};
-    --bs-btn-active-bg: #{color-adjust(color-mix($gray-600, $blue-400, .5), 10%)};
-    --bs-btn-active-border-color: #{rgba($$white, .5)};
-    --bs-btn-focus-border-color: #{rgba($$white, .5)};
-
-    // --bs-btn-focus-box-shadow: 0 0 0 .25rem rgba(255, 255, 255, 20%);
-  }
-}
-endef
-
-define THEME_TOGGLER
-document.addEventListener('DOMContentLoaded', function () {
-    const rootElement = document.documentElement;
-    const anonThemeToggle = document.getElementById('theme-toggler-anonymous');
-    const authThemeToggle = document.getElementById('theme-toggler-authenticated');
-    if (authThemeToggle) {
-        localStorage.removeItem('data-bs-theme');
-    }
-    const anonSavedTheme = localStorage.getItem('data-bs-theme');
-    if (anonSavedTheme) {
-        rootElement.setAttribute('data-bs-theme', anonSavedTheme);
-    }
-    if (anonThemeToggle) {
-        anonThemeToggle.addEventListener('click', function () {
-            const currentTheme = rootElement.getAttribute('data-bs-theme') || 'light';
-            const newTheme = currentTheme === 'light' ? 'dark' : 'light';
-            rootElement.setAttribute('data-bs-theme', newTheme);
-            localStorage.setItem('data-bs-theme', newTheme);
-        });
-    }
-    if (authThemeToggle) {
-        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-        authThemeToggle.addEventListener('click', function () {
-            const currentTheme = rootElement.getAttribute('data-bs-theme') || 'light';
-            const newTheme = currentTheme === 'light' ? 'dark' : 'light';
-            fetch('/user/update_theme_preference/', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': csrfToken, // Include the CSRF token in the headers
-                },
-                body: JSON.stringify({ theme: newTheme }),
-            })
-            .then(response => response.json())
-            .then(data => {
-                rootElement.setAttribute('data-bs-theme', newTheme);
-            })
-            .catch(error => {
-                console.error('Error updating theme preference:', error);
-            });
-        });
-    }
-});
 endef
 
 define TINYMCE_JS
@@ -2316,6 +2273,96 @@ tinymce.init({
   skin: false,
   content_css: false,
 });
+endef
+
+define WAGTAIL_BASE_TEMPLATE
+{% load static wagtailcore_tags wagtailuserbar webpack_loader %}
+
+<!DOCTYPE html>
+<html lang="en" class="h-100" data-bs-theme="{{ request.user.user_theme_preference|default:'light' }}">
+    <head>
+        <meta charset="utf-8" />
+        <title>
+            {% block title %}
+            {% if page.seo_title %}{{ page.seo_title }}{% else %}{{ page.title }}{% endif %}
+            {% endblock %}
+            {% block title_suffix %}
+            {% wagtail_site as current_site %}
+            {% if current_site and current_site.site_name %}- {{ current_site.site_name }}{% endif %}
+            {% endblock %}
+        </title>
+        {% if page.search_description %}
+        <meta name="description" content="{{ page.search_description }}" />
+        {% endif %}
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+        {# Force all links in the live preview panel to be opened in a new tab #}
+        {% if request.in_preview_panel %}
+        <base target="_blank">
+        {% endif %}
+
+        {% stylesheet_pack 'app' %}
+
+        {% block extra_css %}
+        {# Override this in templates to add extra stylesheets #}
+        {% endblock %}
+
+        <style>
+          .success {
+              background-color: #d4edda;
+              border-color: #c3e6cb;
+              color: #155724;
+          }
+          .info {
+              background-color: #d1ecf1;
+              border-color: #bee5eb;
+              color: #0c5460;
+          }
+          .warning {
+              background-color: #fff3cd;
+              border-color: #ffeeba;
+              color: #856404;
+          }
+          .danger {
+              background-color: #f8d7da;
+              border-color: #f5c6cb;
+              color: #721c24;
+          }
+        </style>
+        {% include 'favicon.html' %}
+        {% csrf_token %}
+    </head>
+    <body class="{% block body_class %}{% endblock %} d-flex flex-column h-100">
+        <main class="flex-shrink-0">
+            {% wagtailuserbar %}
+            <div id="app"></div>
+            {% include 'header.html' %}
+            {% if messages %}
+                <div class="messages container">
+                    {% for message in messages %}
+                        <div class="alert {{ message.tags }} alert-dismissible fade show"
+                             role="alert">
+                            {{ message }}
+                            <button type="button"
+                                    class="btn-close"
+                                    data-bs-dismiss="alert"
+                                    aria-label="Close"></button>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+            <div class="container">
+                {% block content %}{% endblock %}
+            </div>
+        </main>
+        {% include 'footer.html' %}
+        {% include 'offcanvas.html' %}
+        {% javascript_pack 'app' %}
+        {% block extra_js %}
+        {# Override this in templates to add extra javascript #}
+        {% endblock %}
+    </body>
+</html>
 endef
 
 define WAGTAIL_BLOCK_CAROUSEL
@@ -2492,112 +2539,6 @@ define WAGTAIL_CONTACT_PAGE_LANDING
 {% extends 'base.html' %}
 {% block content %}<div class="container"><h1>Thank you!</h1></div>{% endblock %}
 endef
-define WAGTAIL_HTML_OFFCANVAS
-{% load wagtailcore_tags %}
-{% wagtail_site as current_site %}
-<div class="offcanvas offcanvas-start bg-dark" tabindex="-1" id="offcanvasExample" aria-labelledby="offcanvasExampleLabel">
-  <div class="offcanvas-header">
-    <a class="offcanvas-title text-light h5 text-decoration-none" id="offcanvasExampleLabel" href="/">{{ current_site.site_name|default:"Project Makefile" }}</a>
-    <button type="button" class="btn-close bg-light" data-bs-dismiss="offcanvas" aria-label="Close"></button>
-  </div>
-  <div class="offcanvas-body bg-dark">
-    {% wagtail_site as current_site %}
-    <ul class="navbar-nav justify-content-end flex-grow-1 pe-3">
-      <li class="nav-item">
-        <a class="nav-link text-light active" aria-current="page" href="/">Home</a>
-      </li>
-      {% for child in current_site.root_page.get_children %}
-      <li class="nav-item">
-        <a class="nav-link text-light" href="{{ child.url }}">{{ child }}</a>
-      </li>
-      {% endfor %}
-      <li class="nav-item" id="{% if request.user.is_authenticated %}theme-toggler-authenticated{% else %}theme-toggler-anonymous{% endif %}">
-          <span class="nav-link text-light" data-bs-toggle="tooltip" title="Toggle dark mode">
-              <i class="fas fa-circle-half-stroke"></i>
-          </span>
-      </li>
-      <div data-component="UserMenu" data-text-color="light" data-is-authenticated="{{ request.user.is_authenticated }}" data-is-superuser="{{ request.user.is_superuser }}"></div>
-    </ul>
-  </div>
-</div>
-endef
-
-define WAGTAIL_SEARCH_TEMPLATE
-{% extends "base.html" %}
-{% load static wagtailcore_tags %}
-{% block body_class %}template-searchresults{% endblock %}
-{% block title %}Search{% endblock %}
-{% block content %}
-    <h1>Search</h1>
-    <form action="{% url 'search' %}" method="get">
-        <input type="text"
-               name="query"
-               {% if search_query %}value="{{ search_query }}"{% endif %}>
-        <input type="submit" value="Search" class="button">
-    </form>
-    {% if search_results %}
-        <ul>
-            {% for result in search_results %}
-                <li>
-                    <h4>
-                        <a href="{% pageurl result %}">{{ result }}</a>
-                    </h4> 
-                    {% if result.search_description %}{{ result.search_description }}{% endif %}
-                </li>
-            {% endfor %}
-        </ul>
-        {% if search_results.has_previous %}
-            <a href="{% url 'search' %}?query={{ search_query|urlencode }}&amp;page={{ search_results.previous_page_number }}">Previous</a>
-        {% endif %}
-        {% if search_results.has_next %}
-            <a href="{% url 'search' %}?query={{ search_query|urlencode }}&amp;page={{ search_results.next_page_number }}">Next</a>
-        {% endif %}
-    {% elif search_query %}
-        No results found
-    {% else %}
-        No results found. Try a <a href="?query=test">test query</a>?
-    {% endif %}
-{% endblock %}
-endef
-
-define WAGTAIL_SEARCH_URLS
-from django.urls import path
-from .views import search
-
-urlpatterns = [
-    path("", search, name="search")
-]
-endef
-
-define WAGTAIL_URLS
-from django.conf import settings
-from django.urls import include, path
-from django.contrib import admin
-
-from wagtail.admin import urls as wagtailadmin_urls
-from wagtail.documents import urls as wagtaildocs_urls
-
-from search import views as search_views
-
-urlpatterns = [
-    path("django/", admin.site.urls),
-    path("wagtail/", include(wagtailadmin_urls)),
-    path("documents/", include(wagtaildocs_urls)),
-    path("search/", search_views.search, name="search"),
-]
-
-if settings.DEBUG:
-    from django.conf.urls.static import static
-    from django.contrib.staticfiles.urls import staticfiles_urlpatterns
-
-    # Serve static and media files from development server
-    urlpatterns += staticfiles_urlpatterns()
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
-endef
-
-define WAGTAIL_HTML_FOOTER
-{% load wagtailcore_tags %}
-endef 
 
 define WAGTAIL_HEADER_PREFIX
 {% load wagtailcore_tags %}
@@ -2671,94 +2612,154 @@ define WAGTAIL_HOME_PAGE_TEMPLATE
 {% endblock %}
 endef
 
-define WAGTAIL_BASE_TEMPLATE
-{% load static wagtailcore_tags wagtailuserbar webpack_loader %}
+define WAGTAIL_OFFCANVAS_TEMPLATE
+{% load wagtailcore_tags %}
+{% wagtail_site as current_site %}
+<div class="offcanvas offcanvas-start bg-dark" tabindex="-1" id="offcanvasExample" aria-labelledby="offcanvasExampleLabel">
+  <div class="offcanvas-header">
+    <a class="offcanvas-title text-light h5 text-decoration-none" id="offcanvasExampleLabel" href="/">{{ current_site.site_name|default:"Project Makefile" }}</a>
+    <button type="button" class="btn-close bg-light" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+  </div>
+  <div class="offcanvas-body bg-dark">
+    {% wagtail_site as current_site %}
+    <ul class="navbar-nav justify-content-end flex-grow-1 pe-3">
+      <li class="nav-item">
+        <a class="nav-link text-light active" aria-current="page" href="/">Home</a>
+      </li>
+      {% for child in current_site.root_page.get_children %}
+      <li class="nav-item">
+        <a class="nav-link text-light" href="{{ child.url }}">{{ child }}</a>
+      </li>
+      {% endfor %}
+      <li class="nav-item" id="{% if request.user.is_authenticated %}theme-toggler-authenticated{% else %}theme-toggler-anonymous{% endif %}">
+          <span class="nav-link text-light" data-bs-toggle="tooltip" title="Toggle dark mode">
+              <i class="fas fa-circle-half-stroke"></i>
+          </span>
+      </li>
+      <div data-component="UserMenu" data-text-color="light" data-is-authenticated="{{ request.user.is_authenticated }}" data-is-superuser="{{ request.user.is_superuser }}"></div>
+    </ul>
+  </div>
+</div>
+endef
 
-<!DOCTYPE html>
-<html lang="en" class="h-100" data-bs-theme="{{ request.user.user_theme_preference|default:'light' }}">
-    <head>
-        <meta charset="utf-8" />
-        <title>
-            {% block title %}
-            {% if page.seo_title %}{{ page.seo_title }}{% else %}{{ page.title }}{% endif %}
-            {% endblock %}
-            {% block title_suffix %}
-            {% wagtail_site as current_site %}
-            {% if current_site and current_site.site_name %}- {{ current_site.site_name }}{% endif %}
-            {% endblock %}
-        </title>
-        {% if page.search_description %}
-        <meta name="description" content="{{ page.search_description }}" />
+define WAGTAIL_PRIVACY_PAGE_MODEL
+from wagtail.models import Page
+from wagtail.admin.panels import FieldPanel
+from wagtailmarkdown.fields import MarkdownField
+
+
+class PrivacyPage(Page):
+    """
+    A Wagtail Page model for the Privacy Policy page.
+    """
+
+    template = "privacy_page.html"
+
+    body = MarkdownField()
+
+    content_panels = Page.content_panels + [
+        FieldPanel("body", classname="full"),
+    ]
+
+    class Meta:
+        verbose_name = "Privacy Page"
+endef
+
+define WAGTAIL_PRIVACY_PAGE_TEMPLATE
+{% extends 'base.html' %}
+{% load wagtailmarkdown %}
+{% block content %}<div class="container">{{ page.body|markdown }}</div>{% endblock %}
+endef
+
+define WAGTAIL_SEARCH_TEMPLATE
+{% extends "base.html" %}
+{% load static wagtailcore_tags %}
+{% block body_class %}template-searchresults{% endblock %}
+{% block title %}Search{% endblock %}
+{% block content %}
+    <h1>Search</h1>
+    <form action="{% url 'search' %}" method="get">
+        <input type="text"
+               name="query"
+               {% if search_query %}value="{{ search_query }}"{% endif %}>
+        <input type="submit" value="Search" class="button">
+    </form>
+    {% if search_results %}
+        <ul>
+            {% for result in search_results %}
+                <li>
+                    <h4>
+                        <a href="{% pageurl result %}">{{ result }}</a>
+                    </h4> 
+                    {% if result.search_description %}{{ result.search_description }}{% endif %}
+                </li>
+            {% endfor %}
+        </ul>
+        {% if search_results.has_previous %}
+            <a href="{% url 'search' %}?query={{ search_query|urlencode }}&amp;page={{ search_results.previous_page_number }}">Previous</a>
         {% endif %}
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-
-        {# Force all links in the live preview panel to be opened in a new tab #}
-        {% if request.in_preview_panel %}
-        <base target="_blank">
+        {% if search_results.has_next %}
+            <a href="{% url 'search' %}?query={{ search_query|urlencode }}&amp;page={{ search_results.next_page_number }}">Next</a>
         {% endif %}
+    {% elif search_query %}
+        No results found
+    {% else %}
+        No results found. Try a <a href="?query=test">test query</a>?
+    {% endif %}
+{% endblock %}
+endef
 
-        {% stylesheet_pack 'app' %}
+define WAGTAIL_SEARCH_URLS
+from django.urls import path
+from .views import search
 
-        {% block extra_css %}
-        {# Override this in templates to add extra stylesheets #}
-        {% endblock %}
+urlpatterns = [
+    path("", search, name="search")
+]
+endef
 
-        <style>
-          .success {
-              background-color: #d4edda;
-              border-color: #c3e6cb;
-              color: #155724;
-          }
-          .info {
-              background-color: #d1ecf1;
-              border-color: #bee5eb;
-              color: #0c5460;
-          }
-          .warning {
-              background-color: #fff3cd;
-              border-color: #ffeeba;
-              color: #856404;
-          }
-          .danger {
-              background-color: #f8d7da;
-              border-color: #f5c6cb;
-              color: #721c24;
-          }
-        </style>
-        {% include 'favicon.html' %}
-        {% csrf_token %}
-    </head>
-    <body class="{% block body_class %}{% endblock %} d-flex flex-column h-100">
-        <main class="flex-shrink-0">
-            {% wagtailuserbar %}
-            <div id="app"></div>
-            {% include 'header.html' %}
-            {% if messages %}
-                <div class="messages container">
-                    {% for message in messages %}
-                        <div class="alert {{ message.tags }} alert-dismissible fade show"
-                             role="alert">
-                            {{ message }}
-                            <button type="button"
-                                    class="btn-close"
-                                    data-bs-dismiss="alert"
-                                    aria-label="Close"></button>
-                        </div>
-                    {% endfor %}
-                </div>
-            {% endif %}
-            <div class="container">
-                {% block content %}{% endblock %}
-            </div>
-        </main>
-        {% include 'footer.html' %}
-        {% include 'offcanvas.html' %}
-        {% javascript_pack 'app' %}
-        {% block extra_js %}
-        {# Override this in templates to add extra javascript #}
-        {% endblock %}
-    </body>
-</html>
+define WAGTAIL_SITEPAGE_MODEL
+from wagtail.models import Page
+
+
+class SitePage(Page):
+    template = "sitepage/site_page.html"
+
+    class Meta:
+        verbose_name = "Site Page"
+endef
+
+define WAGTAIL_SITEPAGE_TEMPLATE
+{% extends 'base.html' %}
+{% block content %}
+    <h1>{{ page.title }}</h1>
+{% endblock %}
+endef
+
+define WAGTAIL_URLS
+from django.conf import settings
+from django.urls import include, path
+from django.contrib import admin
+
+from wagtail.admin import urls as wagtailadmin_urls
+from wagtail.documents import urls as wagtaildocs_urls
+
+from search import views as search_views
+
+urlpatterns = [
+    path("django/", admin.site.urls),
+    path("wagtail/", include(wagtailadmin_urls)),
+    path("documents/", include(wagtaildocs_urls)),
+    path("search/", search_views.search, name="search"),
+]
+
+if settings.DEBUG:
+    from django.conf.urls.static import static
+    from django.contrib.staticfiles.urls import staticfiles_urlpatterns
+
+    # Serve static and media files from development server
+    urlpatterns += staticfiles_urlpatterns()
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
 endef
 
 define WEBPACK_CONFIG_JS
@@ -2772,6 +2773,25 @@ module.exports = {
     path: path.resolve(__dirname, 'dist'),
   },
 };
+endef
+
+define WEBPACK_INDEX_HTML
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hello, Webpack!</title>
+</head>
+<body>
+  <script src="dist/bundle.js"></script>
+</body>
+</html>
+endef
+
+define WEBPACK_INDEX_JS
+const message = "Hello, World!";
+console.log(message);
 endef
 
 define WEBPACK_REVEAL_CONFIG_JS
@@ -2801,21 +2821,6 @@ module.exports = {
 };
 endef
 
-
-define WEBPACK_INDEX_HTML
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Hello, Webpack!</title>
-</head>
-<body>
-  <script src="dist/bundle.js"></script>
-</body>
-</html>
-endef
-
 define WEBPACK_REVEAL_INDEX_HTML
 <!DOCTYPE html>
 <html>
@@ -2839,11 +2844,6 @@ define WEBPACK_REVEAL_INDEX_HTML
 </html>
 endef
 
-define WEBPACK_INDEX_JS
-const message = "Hello, World!";
-console.log(message);
-endef
-
 define WEBPACK_REVEAL_INDEX_JS
 import 'reveal.js/dist/reveal.css';
 import 'reveal.js/dist/theme/black.css';
@@ -2853,57 +2853,61 @@ Reveal.initialize({ slideNumber: true, plugins: [ RevealNotes ]});
 endef
 
 # ------------------------------------------------------------------------------  
-# Export variables
+# Export variables used by phony target rules
 # ------------------------------------------------------------------------------  
 
-export ALLAUTH_LAYOUT_BASE
-export BABELRC
-export WAGTAIL_CONTACT_PAGE_MODEL
-export WAGTAIL_CONTACT_PAGE_TEMPLATE
-export WAGTAIL_CONTACT_PAGE_LANDING
-export WAGTAIL_CONTACT_PAGE_TEST
-export CUSTOM_ENV_EC2_USER
-export CUSTOM_ENV_VAR_FILE
-export MAKEFILE_CUSTOM
+export DJANGO_ALLAUTH_LAYOUT_BASE
 export DJANGO_AUTHENTICATION_BACKENDS
 export DJANGO_BACKEND_APPS
 export DJANGO_BASE_TEMPLATE
 export DJANGO_CUSTOM_ADMIN
-export DJANGO_FOOTER
-export DJANGO_HEADER
+export DJANGO_DOCKERCOMPOSE
+export DJANGO_DOCKERFILE
+export DJANGO_FAVICON_TEMPLATE
+export DJANGO_FOOTER_TEMPLATE
 export DJANGO_FRONTEND_APP
 export DJANGO_FRONTEND_APP_CONFIG
+export DJANGO_FRONTEND_BABELRC
 export DJANGO_FRONTEND_COMPONENTS
-export DJANGO_FRONTEND_PORTAL
-export DJANGO_FRONTEND_STYLES
 export DJANGO_FRONTEND_COMPONENT_CLOCK
 export DJANGO_FRONTEND_COMPONENT_ERROR
 export DJANGO_FRONTEND_COMPONENT_USER_MENU
 export DJANGO_FRONTEND_CONTEXT_INDEX
 export DJANGO_FRONTEND_CONTEXT_USER_PROVIDER
+export DJANGO_FRONTEND_ESLINTRC
+export DJANGO_FRONTEND_OFFCANVAS_TEMPLATE
+export DJANGO_FRONTEND_PORTAL
+export DJANGO_FRONTEND_STYLES
+export DJANGO_FRONTEND_THEME_BLUE
+export DJANGO_FRONTEND_THEME_TOGGLER
+export DJANGO_HEADER_TEMPLATE
+export DJANGO_HOME_PAGE_TEMPLATE
+export DJANGO_HOME_PAGE_URLS
+export DJANGO_HOME_PAGE_VIEWS
+export DJANGO_LOGGING_DEMO_SETTINGS
+export DJANGO_LOGGING_DEMO_URLS
+export DJANGO_LOGGING_DEMO_VIEWS
 export DJANGO_MANAGE_PY
 export DJANGO_MODEL_FORM_DEMO_ADMIN
 export DJANGO_MODEL_FORM_DEMO_FORMS
 export DJANGO_MODEL_FORM_DEMO_MODEL
-export DJANGO_MODEL_FORM_DEMO_URLS
-export DJANGO_MODEL_FORM_DEMO_VIEWS
 export DJANGO_MODEL_FORM_DEMO_TEMPLATE_DETAIL
 export DJANGO_MODEL_FORM_DEMO_TEMPLATE_FORM
 export DJANGO_MODEL_FORM_DEMO_TEMPLATE_LIST
-export DJANGO_SETTINGS_DEV
-export DJANGO_SETTINGS_PROD
-export DJANGO_SETTINGS_BASE_FILE
-export DJANGO_SETTINGS_DEV_FILE
-export DJANGO_SETTINGS_PROD_FILE
-export DJANGO_SETTINGS_REST_FRAMEWORK
-export DJANGO_SETTINGS_THEMES
-export DJANGO_URLS
-export DJANGO_URLS_API
-export DJANGO_UTILS
-export DJANGO_HOME_PAGE_URLS
-export DJANGO_HOME_PAGE_VIEWS
-export DJANGO_HOME_PAGE_TEMPLATE
-export DJANGO_HTML_OFFCANVAS
+export DJANGO_MODEL_FORM_DEMO_URLS
+export DJANGO_MODEL_FORM_DEMO_VIEWS
+export DJANGO_PAYMENTS_ADMIN
+export DJANGO_PAYMENTS_FORM
+export DJANGO_PAYMENTS_MIGRATION_0002
+export DJANGO_PAYMENTS_MIGRATION_0003
+export DJANGO_PAYMENTS_MODELS
+export DJANGO_PAYMENTS_TEMPLATE_CANCEL
+export DJANGO_PAYMENTS_TEMPLATE_CHECKOUT
+export DJANGO_PAYMENTS_TEMPLATE_PRODUCT_DETAIL
+export DJANGO_PAYMENTS_TEMPLATE_PRODUCT_LIST
+export DJANGO_PAYMENTS_TEMPLATE_SUCCESS
+export DJANGO_PAYMENTS_URLS
+export DJANGO_PAYMENTS_VIEW
 export DJANGO_REST_SERIALIZERS
 export DJANGO_REST_VIEWS
 export DJANGO_SEARCH_FORMS
@@ -2912,62 +2916,57 @@ export DJANGO_SEARCH_TEMPLATE
 export DJANGO_SEARCH_URLS
 export DJANGO_SEARCH_UTILS
 export DJANGO_SEARCH_VIEWS
+export DJANGO_SETTINGS_BASE_FILE
+export DJANGO_SETTINGS_DEV
+export DJANGO_SETTINGS_DEV_FILE
+export DJANGO_SETTINGS_DEV_INTERNAL_IPS
+export DJANGO_SETTINGS_PROD
+export DJANGO_SETTINGS_PROD_FILE
+export DJANGO_SETTINGS_REST_FRAMEWORK
+export DJANGO_SETTINGS_THEMES
 export DJANGO_SITEUSER_ADMIN
+export DJANGO_SITEUSER_EDIT_TEMPLATE
 export DJANGO_SITEUSER_FORM
 export DJANGO_SITEUSER_MODEL
 export DJANGO_SITEUSER_URLS
 export DJANGO_SITEUSER_VIEW
 export DJANGO_SITEUSER_VIEW_TEMPLATE
-export DJANGO_SITEUSER_EDIT_TEMPLATE
-export DOCKERFILE
-export DOCKERCOMPOSE
-export ESLINTRC
-export FAVICON_TEMPLATE
+export DJANGO_URLS
+export DJANGO_URLS_API
+export DJANGO_UTILS
+export EB_CUSTOM_ENV_EC2_USER
+export EB_CUSTOM_ENV_VAR_FILE
 export GIT_IGNORE
 export HTML_ERROR
 export HTML_INDEX
-export INTERNAL_IPS
 export JENKINS_FILE
-export LOGGING_DEMO_VIEWS
-export LOGGING_DEMO_URLS
-export LOGGING_DEMO_SETTINGS
-export PRIVACY_PAGE_MODEL
-export PAYMENTS_ADMIN
-export PAYMENTS_FORM
-export PAYMENTS_MIGRATION_0002
-export PAYMENTS_MIGRATION_0003
-export PAYMENTS_MODELS
-export PAYMENTS_URLS
-export PAYMENTS_VIEW
-export PAYMENTS_TEMPLATE_CANCEL
-export PAYMENTS_TEMPLATE_CHECKOUT
-export PAYMENTS_TEMPLATE_SUCCESS
-export PAYMENTS_TEMPLATE_PRODUCT_LIST
-export PAYMENTS_TEMPLATE_PRODUCT_DETAIL
+export MAKEFILE_CUSTOM
 export PROGRAMMING_INTERVIEW
-export PRIVACY_PAGE_MODEL
-export PRIVACY_PAGE_TEMPLATE
 export PYTHON_CI_YAML
 export PYTHON_LICENSE_TXT
 export PYTHON_PROJECT_TOML
-export REQUIREMENTS_TEST
+export PIP_INSTALL_REQUIREMENTS_TEST
 export SEPARATOR
-export SITEPAGE_MODEL
-export SITEPAGE_TEMPLATE
-export THEME_BLUE
-export THEME_TOGGLER
 export TINYMCE_JS
 export WAGTAIL_BASE_TEMPLATE
 export WAGTAIL_BLOCK_CAROUSEL
 export WAGTAIL_BLOCK_MARKETING
+export WAGTAIL_CONTACT_PAGE_LANDING
+export WAGTAIL_CONTACT_PAGE_MODEL
+export WAGTAIL_CONTACT_PAGE_TEMPLATE
+export WAGTAIL_CONTACT_PAGE_TEST
 export WAGTAIL_HOME_PAGE_MODEL
 export WAGTAIL_HOME_PAGE_TEMPLATE
-export WAGTAIL_HOME_PAGE_VIEWS
 export WAGTAIL_HOME_PAGE_URLS
-export WAGTAIL_HTML_PREFIX
-export WAGTAIL_HTML_OFFCANVAS
+export WAGTAIL_HOME_PAGE_VIEWS
+export WAGTAIL_OFFCANVAS_TEMPLATE
+export WAGTAIL_PRIVACY_PAGE_MODEL
+export WAGTAIL_PRIVACY_PAGE_MODEL
+export WAGTAIL_PRIVACY_PAGE_TEMPLATE
 export WAGTAIL_SEARCH_TEMPLATE
 export WAGTAIL_SEARCH_URLS
+export WAGTAIL_SITEPAGE_MODEL
+export WAGTAIL_SITEPAGE_TEMPLATE
 export WAGTAIL_URLS
 export WEBPACK_CONFIG_JS
 export WEBPACK_INDEX_HTML
@@ -2976,11 +2975,9 @@ export WEBPACK_REVEAL_CONFIG_JS
 export WEBPACK_REVEAL_INDEX_HTML
 export WEBPACK_REVEAL_INDEX_JS
 
-# ------------------------------------------------------------------------------  
-# Rules
-# ------------------------------------------------------------------------------  
-
-aws-check-env-default: aws-check-env-profile aws-check-env-region
+# ------------------------------------------------------------------------------
+# Multi-line phony target rules
+# ------------------------------------------------------------------------------
 
 aws-check-env-profile-default:
 ifndef AWS_PROFILE
@@ -2999,12 +2996,6 @@ aws-secret-default: aws-check-env
 aws-sg-default: aws-check-env
 	aws ec2 describe-security-groups $(AWS_OPTS)
 
-aws-vol-default: aws-check-env
-	aws ec2 describe-volumes --output table
-
-aws-vol-available-default: aws-check-env
-	aws ec2 describe-volumes --filters Name=status,Values=available --query "Volumes[*].{ID:VolumeId,Size:Size}" --output table
-
 aws-ssm-default: aws-check-env
 	aws ssm describe-parameters $(AWS_OPTS)
 	@echo "Get parameter values with: aws ssm getparameter --name <Name>."
@@ -3012,125 +3003,14 @@ aws-ssm-default: aws-check-env
 aws-subnet-default: aws-check-env
 	aws ec2 describe-subnets $(AWS_OPTS)
 
+aws-vol-default: aws-check-env
+	aws ec2 describe-volumes --output table
+
+aws-vol-available-default: aws-check-env
+	aws ec2 describe-volumes --filters Name=status,Values=available --query "Volumes[*].{ID:VolumeId,Size:Size}" --output table
+
 aws-vpc-default: aws-check-env
 	aws ec2 describe-vpcs $(AWS_OPTS)
-
-docker-build-default:
-	podman build -t $(PROJECT_NAME) .
-
-docker-shell-default:
-	podman run -it $(PROJECT_NAME) /bin/bash
-
-docker-list-default:
-	podman container list --all
-	podman images --all
-
-docker-compose-default:
-	podman compose up
-
-docker-serve-default:
-	podman run -p 8000:8000 $(PROJECT_NAME)
-
-docker-run-default:
-	podman run $(PROJECT_NAME)
-
-eb-check-env-default:  # https://stackoverflow.com/a/4731504/185820
-ifndef SSH_KEY
-	$(error SSH_KEY is undefined)
-endif
-ifndef VPC_ID
-	$(error VPC_ID is undefined)
-endif
-ifndef VPC_SG
-	$(error VPC_SG is undefined)
-endif
-ifndef VPC_SUBNET_EC2
-	$(error VPC_SUBNET_EC2 is undefined)
-endif
-ifndef VPC_SUBNET_ELB
-	$(error VPC_SUBNET_ELB is undefined)
-endif
-
-eb-create-default: aws-check-env eb-check-env
-	eb create $(ENV_NAME) \
-         -im $(INSTANCE_MIN) \
-         -ix $(INSTANCE_MAX) \
-         -ip $(INSTANCE_PROFILE) \
-         -i $(INSTANCE_TYPE) \
-         -k $(SSH_KEY) \
-         -p $(PLATFORM) \
-         --elb-type $(LB_TYPE) \
-         --vpc \
-         --vpc.id $(VPC_ID) \
-         --vpc.elbpublic \
-         --vpc.publicip \
-         --vpc.ec2subnets $(VPC_SUBNET_EC2) \
-         --vpc.elbsubnets $(VPC_SUBNET_ELB) \
-         --vpc.securitygroups $(VPC_SG)
-
-eb-custom-env-default:
-	$(ADD_DIR) .ebextensions
-	@echo "$$CUSTOM_ENV_EC2_USER" > .ebextensions/bash.config
-	-$(GIT_ADD) .ebextensions/bash.config
-	$(ADD_DIR) .platform/hooks/postdeploy
-	@echo "$$CUSTOM_ENV_VAR_FILE" > .platform/hooks/postdeploy/setenv.sh
-	-$(GIT_ADD) .platform/hooks/postdeploy/setenv.sh
-
-eb-deploy-default:
-	eb deploy
-
-eb-pg-export-default: aws-check-env eb-check-env
-	@if [ ! -d $(EB_DIR) ]; then \
-        echo "Directory $(EB_DIR) does not exist"; \
-    else \
-        echo "Directory $(EB_DIR) does exist!"; \
-        eb ssh --quiet -c "export PGPASSWORD=$(DATABASE_PASS); pg_dump -U $(DATABASE_USER) -h $(DATABASE_HOST) $(DATABASE_NAME)" > $(DATABASE_NAME).sql; \
-        echo "Wrote $(DATABASE_NAME).sql"; \
-    fi
-
-eb-restart-default:
-	eb ssh -c "systemctl restart web"
-
-eb-rebuild-default:
-	aws elasticbeanstalk rebuild-environment --environment-name $(ENV_NAME)
-
-eb-upgrade-default:
-	eb upgrade
-
-eb-init-default: aws-check-env-profile
-	eb init --profile=$(AWS_PROFILE)
-
-eb-list-platforms-default:
-	aws elasticbeanstalk list-platform-versions
-
-eb-list-databases-default:
-	@eb ssh --quiet -c "export PGPASSWORD=$(DATABASE_PASS); psql -l -U $(DATABASE_USER) -h $(DATABASE_HOST) $(DATABASE_NAME)"
-
-eb-logs-default:
-	eb logs
-
-eb-print-env-default:
-	eb printenv
-
-npm-init-default:
-	npm init -y
-	-$(GIT_ADD) package.json
-	-$(GIT_ADD) package-lock.json
-
-npm-build-default:
-	npm run build
-
-npm-install-default:
-	npm install
-	-$(GIT_ADD) package-lock.json
-
-npm-clean-default:
-	$(DEL_DIR) dist/
-	$(DEL_DIR) node_modules/
-	$(DEL_FILE) package-lock.json
-
-npm-serve-default:
-	npm run start
 
 db-mysql-init-default:
 	-mysqladmin -u root drop $(PROJECT_NAME)
@@ -3145,11 +3025,11 @@ db-pg-init-test-default:
 	-createdb test_$(PROJECT_NAME)
 
 db-pg-import-default:
-	@psql $(DATABASE_NAME) < $(DATABASE_NAME).sql
+	@psql $(DJANGO_DB_NAME) < $(DJANGO_DB_NAME).sql
 
 django-allauth-template-default:
 	$(ADD_DIR) backend/templates/allauth/layouts
-	@echo "$$ALLAUTH_LAYOUT_BASE" > backend/templates/allauth/layouts/base.html
+	@echo "$$DJANGO_ALLAUTH_LAYOUT_BASE" > backend/templates/allauth/layouts/base.html
 	-$(GIT_ADD) backend/templates/allauth/layouts/base.html
 
 django-allauth-default:
@@ -3169,14 +3049,14 @@ django-custom-admin-default:
 	-$(GIT_ADD) backend/*.py
 
 django-dockerfile-default:
-	@echo "$$DOCKERFILE" > Dockerfile
+	@echo "$$DJANGO_DOCKERFILE" > Dockerfile
 	-$(GIT_ADD) Dockerfile
-	@echo "$$DOCKERCOMPOSE" > docker-compose.yml
+	@echo "$$DJANGO_DOCKERCOMPOSE" > docker-compose.yml
 	-$(GIT_ADD) docker-compose.yml
 
 django-offcanvas-template-default:
 	-$(ADD_DIR) backend/templates
-	@echo "$$DJANGO_HTML_OFFCANVAS" > backend/templates/offcanvas.html
+	@echo "$$DJANGO_FRONTEND_OFFCANVAS_TEMPLATE" > backend/templates/offcanvas.html
 	-$(GIT_ADD) backend/templates/offcanvas.html
 
 django-manage-py-default:
@@ -3189,15 +3069,15 @@ django-base-template-default:
 	-$(GIT_ADD) backend/templates/base.html
 
 django-favicon-default:
-	@echo "$$FAVICON_TEMPLATE" > backend/templates/favicon.html
+	@echo "$$DJANGO_FAVICON_TEMPLATE" > backend/templates/favicon.html
 	-$(GIT_ADD) backend/templates/favicon.html
 
 django-header-template-default:
-	@echo "$$DJANGO_HEADER" > backend/templates/header.html
+	@echo "$$DJANGO_HEADER_TEMPLATE" > backend/templates/header.html
 	-$(GIT_ADD) backend/templates/header.html
 
 django-footer-template-default:
-	@echo "$$DJANGO_FOOTER" > backend/templates/footer.html
+	@echo "$$DJANGO_FOOTER_TEMPLATE" > backend/templates/footer.html
 	-$(GIT_ADD) backend/templates/footer.html
 
 django-init-minimal-default: separator \
@@ -3310,7 +3190,7 @@ django-wagtail-init-default: separator \
 	serve
 
 django-install-minimal-default:
-	$(ENSURE_PIP)
+	$(PIP_ENSURE)
 	python -m pip install \
 	Django \
 	dj-database-url \
@@ -3318,7 +3198,7 @@ django-install-minimal-default:
 	python-webpack-boilerplate
 
 django-install-default:
-	$(ENSURE_PIP)
+	$(PIP_ENSURE)
 	python -m pip install \
 	Django \
         Faker \
@@ -3376,20 +3256,20 @@ django-frontend-default: python-webpack-init
 	$(ADD_DIR) frontend/src/context
 	$(ADD_DIR) frontend/src/images
 	$(ADD_DIR) frontend/src/utils
+	@echo "$$DJANGO_FRONTEND_APP" > frontend/src/application/app.js
+	@echo "$$DJANGO_FRONTEND_APP_CONFIG" > frontend/src/application/config.js
+	@echo "$$DJANGO_FRONTEND_BABELRC" > frontend/.babelrc
 	@echo "$$DJANGO_FRONTEND_COMPONENT_CLOCK" > frontend/src/components/Clock.js
 	@echo "$$DJANGO_FRONTEND_COMPONENT_ERROR" > frontend/src/components/ErrorBoundary.js
 	@echo "$$DJANGO_FRONTEND_CONTEXT_INDEX" > frontend/src/context/index.js
 	@echo "$$DJANGO_FRONTEND_CONTEXT_USER_PROVIDER" > frontend/src/context/UserContextProvider.js
 	@echo "$$DJANGO_FRONTEND_COMPONENT_USER_MENU" > frontend/src/components/UserMenu.js
-	@echo "$$DJANGO_FRONTEND_APP" > frontend/src/application/app.js
-	@echo "$$DJANGO_FRONTEND_APP_CONFIG" > frontend/src/application/config.js
 	@echo "$$DJANGO_FRONTEND_COMPONENTS" > frontend/src/components/index.js
+	@echo "$$DJANGO_FRONTEND_ESLINTRC" > frontend/.eslintrc
 	@echo "$$DJANGO_FRONTEND_PORTAL" > frontend/src/dataComponents.js
 	@echo "$$DJANGO_FRONTEND_STYLES" > frontend/src/styles/index.scss
-	@echo "$$BABELRC" > frontend/.babelrc
-	@echo "$$ESLINTRC" > frontend/.eslintrc
-	@echo "$$THEME_BLUE" > frontend/src/styles/theme-blue.scss
-	@echo "$$THEME_TOGGLER" > frontend/src/utils/themeToggler.js
+	@echo "$$DJANGO_FRONTEND_THEME_BLUE" > frontend/src/styles/theme-blue.scss
+	@echo "$$DJANGO_FRONTEND_THEME_TOGGLER" > frontend/src/utils/themeToggler.js
 	# @echo "$$TINYMCE_JS" > frontend/src/utils/tinymce.js
 	@$(MAKE) django-npm-save
 	@$(MAKE) django-npm-save-dev
@@ -3410,18 +3290,18 @@ django-home-default:
 
 django-payments-demo-default:
 	python manage.py startapp payments
-	@echo "$$PAYMENTS_FORM" > payments/forms.py
-	@echo "$$PAYMENTS_MODELS" > payments/models.py
-	@echo "$$PAYMENTS_ADMIN" > payments/admin.py
-	@echo "$$PAYMENTS_VIEW" > payments/views.py
-	@echo "$$PAYMENTS_URLS" > payments/urls.py
+	@echo "$$DJANGO_PAYMENTS_FORM" > payments/forms.py
+	@echo "$$DJANGO_PAYMENTS_MODELS" > payments/models.py
+	@echo "$$DJANGO_PAYMENTS_ADMIN" > payments/admin.py
+	@echo "$$DJANGO_PAYMENTS_VIEW" > payments/views.py
+	@echo "$$DJANGO_PAYMENTS_URLS" > payments/urls.py
 	$(ADD_DIR) payments/templates/payments
 	$(ADD_DIR) payments/management/commands
-	@echo "$$PAYMENTS_TEMPLATE_CANCEL" > payments/templates/payments/cancel.html
-	@echo "$$PAYMENTS_TEMPLATE_CHECKOUT" > payments/templates/payments/checkout.html
-	@echo "$$PAYMENTS_TEMPLATE_SUCCESS" > payments/templates/payments/success.html
-	@echo "$$PAYMENTS_TEMPLATE_PRODUCT_LIST" > payments/templates/payments/product_list.html
-	@echo "$$PAYMENTS_TEMPLATE_PRODUCT_DETAIL" > payments/templates/payments/product_detail.html
+	@echo "$$DJANGO_PAYMENTS_TEMPLATE_CANCEL" > payments/templates/payments/cancel.html
+	@echo "$$DJANGO_PAYMENTS_TEMPLATE_CHECKOUT" > payments/templates/payments/checkout.html
+	@echo "$$DJANGO_PAYMENTS_TEMPLATE_SUCCESS" > payments/templates/payments/success.html
+	@echo "$$DJANGO_PAYMENTS_TEMPLATE_PRODUCT_LIST" > payments/templates/payments/product_list.html
+	@echo "$$DJANGO_PAYMENTS_TEMPLATE_PRODUCT_DETAIL" > payments/templates/payments/product_detail.html
 	@echo "DJSTRIPE_FOREIGN_KEY_TO_FIELD = 'id'" >> $(DJANGO_SETTINGS_BASE_FILE)
 	@echo "DJSTRIPE_WEBHOOK_VALIDATION = 'retrieve_event'" >> $(DJANGO_SETTINGS_BASE_FILE)
 	@echo "STRIPE_PUBLISHABLE_KEY = os.environ.get('STRIPE_PUBLISHABLE_KEY')" >> $(DJANGO_SETTINGS_BASE_FILE)
@@ -3431,8 +3311,8 @@ django-payments-demo-default:
 	@echo "INSTALLED_APPS.append('djstripe')  # noqa" >> $(DJANGO_SETTINGS_BASE_FILE)
 	@echo "urlpatterns += [path('payments/', include('payments.urls'))]" >> backend/urls.py
 	python manage.py makemigrations payments
-	@echo "$$PAYMENTS_MIGRATION_0002" > payments/migrations/0002_set_stripe_api_keys.py
-	@echo "$$PAYMENTS_MIGRATION_0003" > payments/migrations/0003_create_initial_products.py
+	@echo "$$DJANGO_PAYMENTS_MIGRATION_0002" > payments/migrations/0002_set_stripe_api_keys.py
+	@echo "$$DJANGO_PAYMENTS_MIGRATION_0003" > payments/migrations/0003_create_initial_products.py
 	-$(GIT_ADD) payments/
 
 django-rest-serializers-default:
@@ -3517,9 +3397,9 @@ django-modelform-demo-default:
 
 django-logging-demo-default:
 	python manage.py startapp logging_demo
-	@echo "$$LOGGING_DEMO_VIEWS" > logging_demo/views.py
-	@echo "$$LOGGING_DEMO_URLS" > logging_demo/urls.py
-	@echo "$$LOGGING_DEMO_SETTINGS" >> $(DJANGO_SETTINGS_BASE_FILE)
+	@echo "$$DJANGO_LOGGING_DEMO_VIEWS" > logging_demo/views.py
+	@echo "$$DJANGO_LOGGING_DEMO_URLS" > logging_demo/urls.py
+	@echo "$$DJANGO_LOGGING_DEMO_SETTINGS" >> $(DJANGO_SETTINGS_BASE_FILE)
 	@echo "INSTALLED_APPS.append('logging_demo')  # noqa" >> $(DJANGO_SETTINGS_BASE_FILE)
 	@echo "urlpatterns += [path('logging-demo/', include('logging_demo.urls'))]" >> backend/urls.py
 	-$(GIT_ADD) logging_demo/*.py
@@ -3590,7 +3470,7 @@ django-settings-base-default:
 django-settings-dev-minimal-default:
 	@echo "# $(PROJECT_NAME)" > $(DJANGO_SETTINGS_DEV_FILE)
 	@echo "$$DJANGO_SETTINGS_DEV" >> backend/settings/dev.py
-	@echo "$$INTERNAL_IPS" >> $(DJANGO_SETTINGS_DEV_FILE)
+	@echo "$$DJANGO_SETTINGS_DEV_INTERNAL_IPS" >> $(DJANGO_SETTINGS_DEV_FILE)
 	@echo "INSTALLED_APPS.append('django.contrib.admindocs')  # noqa" >> $(DJANGO_SETTINGS_DEV_FILE)
 	@echo "MIDDLEWARE.append('debug_toolbar.middleware.DebugToolbarMiddleware')  # noqa" >> $(DJANGO_SETTINGS_DEV_FILE)
 	@SECRET_KEY=$$(openssl rand -base64 48); echo "SECRET_KEY = '$$SECRET_KEY'" >> $(DJANGO_SETTINGS_DEV_FILE)
@@ -3599,7 +3479,7 @@ django-settings-dev-minimal-default:
 django-settings-dev-default:
 	@echo "# $(PROJECT_NAME)" > $(DJANGO_SETTINGS_DEV_FILE)
 	@echo "$$DJANGO_SETTINGS_DEV" >> backend/settings/dev.py
-	@echo "$$INTERNAL_IPS" >> $(DJANGO_SETTINGS_DEV_FILE)
+	@echo "$$DJANGO_SETTINGS_DEV_INTERNAL_IPS" >> $(DJANGO_SETTINGS_DEV_FILE)
 	@echo "INSTALLED_APPS.append('django.contrib.admindocs')  # noqa" >> $(DJANGO_SETTINGS_DEV_FILE)
 	@echo "MIDDLEWARE.append('debug_toolbar.middleware.DebugToolbarMiddleware')  # noqa" >> $(DJANGO_SETTINGS_DEV_FILE)
 	@echo "MIDDLEWARE.append('hijack.middleware.HijackUserMiddleware')  # noqa" >> $(DJANGO_SETTINGS_DEV_FILE)
@@ -3703,14 +3583,108 @@ else
 	@echo "Unable to open on: $(UNAME)"
 endif
 
-favicon-default:
+docker-build-default:
+	podman build -t $(PROJECT_NAME) .
+
+docker-compose-default:
+	podman compose up
+
+docker-list-default:
+	podman container list --all
+	podman images --all
+
+docker-run-default:
+	podman run $(PROJECT_NAME)
+
+docker-serve-default:
+	podman run -p 8000:8000 $(PROJECT_NAME)
+
+docker-shell-default:
+	podman run -it $(PROJECT_NAME) /bin/bash
+
+eb-check-env-default:  # https://stackoverflow.com/a/4731504/185820
+ifndef EB_SSH_KEY
+	$(error EB_SSH_KEY is undefined)
+endif
+ifndef VPC_ID
+	$(error VPC_ID is undefined)
+endif
+ifndef VPC_SG
+	$(error VPC_SG is undefined)
+endif
+ifndef VPC_SUBNET_EC2
+	$(error VPC_SUBNET_EC2 is undefined)
+endif
+ifndef VPC_SUBNET_ELB
+	$(error VPC_SUBNET_ELB is undefined)
+endif
+
+eb-create-default: aws-check-env eb-check-env
+	eb create $(EB_ENV_NAME) \
+         -im $(EC2_INSTANCE_MIN) \
+         -ix $(EC2_INSTANCE_MAX) \
+         -ip $(EC2_INSTANCE_PROFILE) \
+         -i $(EC2_INSTANCE_TYPE) \
+         -k $(EB_SSH_KEY) \
+         -p $(EB_PLATFORM) \
+         --elb-type $(EC2_LB_TYPE) \
+         --vpc \
+         --vpc.id $(VPC_ID) \
+         --vpc.elbpublic \
+         --vpc.publicip \
+         --vpc.ec2subnets $(VPC_SUBNET_EC2) \
+         --vpc.elbsubnets $(VPC_SUBNET_ELB) \
+         --vpc.securitygroups $(VPC_SG)
+
+eb-custom-env-default:
+	$(ADD_DIR) .ebextensions
+	@echo "$$EB_CUSTOM_ENV_EC2_USER" > .ebextensions/bash.config
+	-$(GIT_ADD) .ebextensions/bash.config
+	$(ADD_DIR) .platform/hooks/postdeploy
+	@echo "$$EB_CUSTOM_ENV_VAR_FILE" > .platform/hooks/postdeploy/setenv.sh
+	-$(GIT_ADD) .platform/hooks/postdeploy/setenv.sh
+
+eb-deploy-default:
+	eb deploy
+
+eb-pg-export-default: aws-check-env eb-check-env
+	@if [ ! -d $(EB_DIR_NAME) ]; then \
+        echo "Directory $(EB_DIR_NAME) does not exist"; \
+    else \
+        echo "Directory $(EB_DIR_NAME) does exist!"; \
+        eb ssh --quiet -c "export PGPASSWORD=$(DJANGO_DB_PASS); pg_dump -U $(DJANGO_DB_USER) -h $(DJANGO_DB_HOST) $(DJANGO_DB_NAME)" > $(DJANGO_DB_NAME).sql; \
+        echo "Wrote $(DJANGO_DB_NAME).sql"; \
+    fi
+
+eb-restart-default:
+	eb ssh -c "systemctl restart web"
+
+eb-rebuild-default:
+	aws elasticbeanstalk rebuild-environment --environment-name $(ENV_NAME)
+
+eb-upgrade-default:
+	eb upgrade
+
+eb-init-default: aws-check-env-profile
+	eb init --profile=$(AWS_PROFILE)
+
+eb-list-platforms-default:
+	aws elasticbeanstalk list-platform-versions
+
+eb-list-databases-default:
+	@eb ssh --quiet -c "export PGPASSWORD=$(DJANGO_DB_PASS); psql -l -U $(DJANGO_DB_USER) -h $(DJANGO_DB_HOST) $(DJANGO_DB_NAME)"
+
+eb-logs-default:
+	eb logs
+
+eb-print-env-default:
+	eb printenv
+
+favicon-init-default:
 	dd if=/dev/urandom bs=64 count=1 status=none | base64 | convert -size 16x16 -depth 8 -background none -fill white label:@- favicon.png
 	convert favicon.png favicon.ico
 	-$(GIT_ADD) favicon.ico
 	$(DEL_FILE) favicon.png
-
-gh-default:
-	gh browse
 
 git-ignore-default:
 	@echo "$$GIT_IGNORE" > .gitignore
@@ -3731,6 +3705,9 @@ git-commit-lint-default:
 
 git-commit-upgrade-default:
 	git commit -a -m "Upgrade"
+
+git-commit-wording-default:
+	git commit -a -m "Wording"
 
 git-commit-default:
 	-@$(GIT_COMMIT)
@@ -3786,13 +3763,37 @@ lint-default:
 	-djlint --reformat --format-css --format-js .
 	-ruff check -v --fix
 
+makefile-custom-default:
+	@echo "$$MAKEFILE_CUSTOM" > $(MAKEFILE_CUSTOM_FILE)
+	-$(GIT_ADD) $(MAKEFILE_CUSTOM_FILE)
+
 make-default:
 	-$(GIT_ADD) Makefile
 	-git commit Makefile -m "Add/update project-makefile files"
 	-git push
 
+npm-init-default:
+	npm init -y
+	-$(GIT_ADD) package.json
+	-$(GIT_ADD) package-lock.json
+
+npm-build-default:
+	npm run build
+
+npm-install-default:
+	npm install
+	-$(GIT_ADD) package-lock.json
+
+npm-clean-default:
+	$(DEL_DIR) dist/
+	$(DEL_DIR) node_modules/
+	$(DEL_FILE) package-lock.json
+
+npm-serve-default:
+	npm run start
+
 pip-freeze-default:
-	$(ENSURE_PIP)
+	$(PIP_ENSURE)
 	python -m pip freeze | sort > $(TMPDIR)/requirements.txt
 	mv -f $(TMPDIR)/requirements.txt .
 	-$(GIT_ADD) requirements.txt
@@ -3802,27 +3803,27 @@ pip-init-default:
 	-$(GIT_ADD) requirements.txt
 
 pip-init-test-default:
-	@echo "$$REQUIREMENTS_TEST" > requirements-test.txt
+	@echo "$$PIP_INSTALL_REQUIREMENTS_TEST" > requirements-test.txt
 	-$(GIT_ADD) requirements-test.txt
 
 pip-install-default:
-	$(ENSURE_PIP)
+	$(PIP_ENSURE)
 	$(MAKE) pip-upgrade
 	python -m pip install wheel
 	python -m pip install -r requirements.txt
 
 pip-install-dev-default:
-	$(ENSURE_PIP)
+	$(PIP_ENSURE)
 	python -m pip install -r requirements-dev.txt
 
 pip-install-test-default:
-	$(ENSURE_PIP)
+	$(PIP_ENSURE)
 	python -m pip install -r requirements-test.txt
 
 pip-install-upgrade-default:
 	cat requirements.txt | awk -F\= '{print $$1}' > $(TMPDIR)/requirements.txt
 	mv -f $(TMPDIR)/requirements.txt .
-	$(ENSURE_PIP)
+	$(PIP_ENSURE)
 	python -m pip install -U -r requirements.txt
 	python -m pip freeze | sort > $(TMPDIR)/requirements.txt
 	mv -f $(TMPDIR)/requirements.txt .
@@ -3831,11 +3832,11 @@ pip-deps-default:
 	pipdeptree
 
 pip-upgrade-default:
-	$(ENSURE_PIP)
+	$(PIP_ENSURE)
 	python -m pip install -U pip
 
 pip-uninstall-default:
-	$(ENSURE_PIP)
+	$(PIP_ENSURE)
 	python -m pip freeze | xargs python -m pip uninstall -y
 
 plone-clean-default:
@@ -3843,8 +3844,8 @@ plone-clean-default:
 	$(DEL_DIR) $(PACKAGE_NAME)
 
 plone-init-default:
-	$(ENSURE_PIP)
-	python -m pip install plone -c $(PLONE_CONSTRAINTS)
+	$(PIP_ENSURE)
+	python -m pip install plone -c $(PIP_CONSTRAINTS_PLONE)
 	mkwsgiinstance -d $(PACKAGE_NAME) -u admin:admin
 	cat $(PACKAGE_NAME)/etc/zope.ini | sed -e 's/host = 127.0.0.1/host = 0.0.0.0/; s/port = 8080/port = 8000/' > $(TMPDIR)/zope.ini
 	mv -f $(TMPDIR)/zope.ini $(PACKAGE_NAME)/etc/zope.ini
@@ -3856,10 +3857,6 @@ plone-serve-default:
 
 plone-build-default:
 	buildout
-
-custom-makefile-default:
-	@echo "$$MAKEFILE_CUSTOM" > $(MAKEFILE_CUSTOM_FILE)
-	-$(GIT_ADD) $(MAKEFILE_CUSTOM_FILE)
 
 programming-interview-default:
 	@echo "$$PROGRAMMING_INTERVIEW" > interview.py
@@ -3892,6 +3889,15 @@ python-ci-default:
 rand-default:
 	@openssl rand -base64 12 | sed 's/\///g'
 
+readme-build-default:
+	rst2pdf README.rst
+
+readme-edit-rst-default:
+	$(EDITOR) README.rst
+
+readme-edit-md-default:
+	$(EDITOR) README.md
+
 readme-init-rst-default:
 	@echo "$(PROJECT_NAME)" > README.rst
 	@echo "================================================================================" >> README.rst
@@ -3901,17 +3907,8 @@ readme-init-md-default:
 	@echo "# $(PROJECT_NAME)" > README.md
 	-$(GIT_ADD) README.md
 
-readme-edit-rst-default:
-	$(EDITOR) README.rst
-
-readme-edit-md-default:
-	$(EDITOR) README.md
-
 readme-open-default:
 	open README.pdf
-
-readme-build-default:
-	rst2pdf README.rst
 
 reveal-build-default:
 	npm run build
@@ -3933,6 +3930,13 @@ reveal-serve-default:
 	npm run watch &
 	python -m http.server
 
+review-default:
+ifeq ($(UNAME), Darwin)
+	$(EDITOR_REVIEW) `find backend/ -name \*.py` `find backend/ -name \*.html` `find frontend/ -name \*.js` `find frontend/ -name \*.js`
+else
+	@echo "Unsupported"
+endif
+
 separator:
 	@echo "$$SEPARATOR"
 
@@ -3947,26 +3951,19 @@ sphinx-init-default: sphinx-install
 	$(MAKE) gitignore
 
 sphinx-theme-init-default:
-	export THEME_NAME=$(PROJECT_NAME)_theme; \
-	$(ADD_DIR) $$THEME_NAME ; \
-	$(ADD_FILE) $$THEME_NAME/__init__.py ; \
-	-$(GIT_ADD) $$THEME_NAME/__init__.py ; \
-	$(ADD_FILE) $$THEME_NAME/theme.conf ; \
-	-$(GIT_ADD) $$THEME_NAME/theme.conf ; \
-	$(ADD_FILE) $$THEME_NAME/layout.html ; \
-	-$(GIT_ADD) $$THEME_NAME/layout.html ; \
-	$(ADD_DIR) $$THEME_NAME/static/css ; \
-	$(ADD_FILE) $$THEME_NAME/static/css/style.css ; \
-	$(ADD_DIR) $$THEME_NAME/static/js ; \
-	$(ADD_FILE) $$THEME_NAME/static/js/script.js ; \
-	-$(GIT_ADD) $$THEME_NAME/static
-
-review-default:
-ifeq ($(UNAME), Darwin)
-	$(REVIEW_EDITOR) `find backend/ -name \*.py` `find backend/ -name \*.html` `find frontend/ -name \*.js` `find frontend/ -name \*.js`
-else
-	@echo "Unsupported"
-endif
+	export DJANGO_FRONTEND_THEME_NAME=$(PROJECT_NAME)_theme; \
+	$(ADD_DIR) $$DJANGO_FRONTEND_THEME_NAME ; \
+	$(ADD_FILE) $$DJANGO_FRONTEND_THEME_NAME/__init__.py ; \
+	-$(GIT_ADD) $$DJANGO_FRONTEND_THEME_NAME/__init__.py ; \
+	$(ADD_FILE) $$DJANGO_FRONTEND_THEME_NAME/theme.conf ; \
+	-$(GIT_ADD) $$DJANGO_FRONTEND_THEME_NAME/theme.conf ; \
+	$(ADD_FILE) $$DJANGO_FRONTEND_THEME_NAME/layout.html ; \
+	-$(GIT_ADD) $$DJANGO_FRONTEND_THEME_NAME/layout.html ; \
+	$(ADD_DIR) $$DJANGO_FRONTEND_THEME_NAME/static/css ; \
+	$(ADD_FILE) $$DJANGO_FRONTEND_THEME_NAME/static/css/style.css ; \
+	$(ADD_DIR) $$DJANGO_FRONTEND_THEME_NAME/static/js ; \
+	$(ADD_FILE) $$DJANGO_FRONTEND_THEME_NAME/static/js/script.js ; \
+	-$(GIT_ADD) $$DJANGO_FRONTEND_THEME_NAME/static
 
 sphinx-install-default:
 	echo "Sphinx\n" > requirements.txt
@@ -3990,6 +3987,79 @@ usage-default:
 	@echo "   make help    Print all targets"
 	@echo "   make usage   Print this message"
 
+wagtail-base-template-default:
+	@echo "$$WAGTAIL_BASE_TEMPLATE" > backend/templates/base.html
+
+wagtail-clean-default:
+	-@for dir in $(shell echo "$(WAGTAIL_CLEAN_DIRS)"); do \
+		echo "Cleaning $$dir"; \
+		$(DEL_DIR) $$dir >/dev/null 2>&1; \
+	done
+	-@for file in $(shell echo "$(WAGTAIL_CLEAN_FILES)"); do \
+		echo "Cleaning $$file"; \
+		$(DEL_FILE) $$file >/dev/null 2>&1; \
+	done
+
+wagtail-contactpage-default:
+	python manage.py startapp contactpage
+	@echo "$$WAGTAIL_CONTACT_PAGE_MODEL" > contactpage/models.py
+	@echo "$$WAGTAIL_CONTACT_PAGE_TEST" > contactpage/tests.py
+	$(ADD_DIR) contactpage/templates/contactpage/
+	@echo "$$WAGTAIL_CONTACT_PAGE_TEMPLATE" > contactpage/templates/contactpage/contact_page.html
+	@echo "$$WAGTAIL_CONTACT_PAGE_LANDING" > contactpage/templates/contactpage/contact_page_landing.html
+	@echo "INSTALLED_APPS.append('contactpage')" >> $(DJANGO_SETTINGS_BASE_FILE)
+	python manage.py makemigrations contactpage
+	-$(GIT_ADD) contactpage/templates
+	-$(GIT_ADD) contactpage/*.py
+	-$(GIT_ADD) contactpage/migrations/*.py
+
+wagtail-header-prefix-template-default:
+	@echo "$$WAGTAIL_HEADER_PREFIX" > backend/templates/header.html
+
+wagtail-home-default:
+	@echo "$$WAGTAIL_HOME_PAGE_MODEL" > home/models.py
+	@echo "$$WAGTAIL_HOME_PAGE_TEMPLATE" > home/templates/home/home_page.html
+	$(ADD_DIR) home/templates/blocks
+	@echo "$$WAGTAIL_BLOCK_MARKETING" > home/templates/blocks/marketing_block.html
+	@echo "$$WAGTAIL_BLOCK_CAROUSEL" > home/templates/blocks/carousel_block.html
+	-$(GIT_ADD) home/templates
+	-$(GIT_ADD) home/*.py
+	python manage.py makemigrations home
+	-$(GIT_ADD) home/migrations/*.py
+
+wagtail-install-default:
+	$(PIP_ENSURE)
+	python -m pip install \
+        wagtail \
+        wagtailmenus \
+        wagtail-color-panel \
+        wagtail-django-recaptcha \
+        wagtail-markdown \
+        wagtail-modeladmin \
+        wagtail-seo \
+        weasyprint \
+        whitenoise \
+        xhtml2pdf
+
+wagtail-privacy-default:
+	python manage.py startapp privacy
+	@echo "$$WAGTAIL_PRIVACY_PAGE_MODEL" > privacy/models.py
+	$(ADD_DIR) privacy/templates
+	@echo "$$WAGTAIL_PRIVACY_PAGE_TEMPLATE" > privacy/templates/privacy_page.html
+	@echo "INSTALLED_APPS.append('privacy')" >> $(DJANGO_SETTINGS_BASE_FILE)
+	python manage.py makemigrations privacy
+	-$(GIT_ADD) privacy/templates
+	-$(GIT_ADD) privacy/*.py
+	-$(GIT_ADD) privacy/migrations/*.py
+
+wagtail-project-default:
+	wagtail start backend .
+	-$(GIT_ADD) backend/
+	-$(GIT_ADD) .dockerignore
+	-$(GIT_ADD) Dockerfile
+	-$(GIT_ADD) manage.py
+	-$(GIT_ADD) requirements.txt
+
 wagtail-search-default:
 	@echo "$$WAGTAIL_SEARCH_TEMPLATE" > search/templates/search/search.html
 	@echo "$$WAGTAIL_SEARCH_URLS" > search/urls.py
@@ -4006,76 +4076,27 @@ wagtail-settings-default:
 	@echo "TEMPLATES[0]['OPTIONS']['context_processors'].append('wagtail.contrib.settings.context_processors.settings')" >> $(DJANGO_SETTINGS_BASE_FILE)
 	@echo "TEMPLATES[0]['OPTIONS']['context_processors'].append('wagtailmenus.context_processors.wagtailmenus')">> $(DJANGO_SETTINGS_BASE_FILE)
 
-wagtail-privacy-default:
-	python manage.py startapp privacy
-	@echo "$$PRIVACY_PAGE_MODEL" > privacy/models.py
-	$(ADD_DIR) privacy/templates
-	@echo "$$PRIVACY_PAGE_TEMPLATE" > privacy/templates/privacy_page.html
-	@echo "INSTALLED_APPS.append('privacy')" >> $(DJANGO_SETTINGS_BASE_FILE)
-	python manage.py makemigrations privacy
-	-$(GIT_ADD) privacy/templates
-	-$(GIT_ADD) privacy/*.py
-	-$(GIT_ADD) privacy/migrations/*.py
-
-wagtail-base-template-default:
-	@echo "$$WAGTAIL_BASE_TEMPLATE" > backend/templates/base.html
-
-wagtail-header-prefix-template-default:
-	@echo "$$WAGTAIL_HEADER_PREFIX" > backend/templates/header.html
-
-wagtail-clean-default:
-	-@for dir in $(shell echo "$(WAGTAIL_CLEAN_DIRS)"); do \
-		echo "Cleaning $$dir"; \
-		$(DEL_DIR) $$dir >/dev/null 2>&1; \
-	done
-	-@for file in $(shell echo "$(WAGTAIL_CLEAN_FILES)"); do \
-		echo "Cleaning $$file"; \
-		$(DEL_FILE) $$file >/dev/null 2>&1; \
-	done
-
-wagtail-home-default:
-	@echo "$$WAGTAIL_HOME_PAGE_MODEL" > home/models.py
-	@echo "$$WAGTAIL_HOME_PAGE_TEMPLATE" > home/templates/home/home_page.html
-	$(ADD_DIR) home/templates/blocks
-	@echo "$$WAGTAIL_BLOCK_MARKETING" > home/templates/blocks/marketing_block.html
-	@echo "$$WAGTAIL_BLOCK_CAROUSEL" > home/templates/blocks/carousel_block.html
-	-$(GIT_ADD) home/templates
-	-$(GIT_ADD) home/*.py
-	python manage.py makemigrations home
-	-$(GIT_ADD) home/migrations/*.py
+wagtail-sitepage-default:
+	python manage.py startapp sitepage
+	@echo "$$WAGTAIL_SITEPAGE_MODEL" > sitepage/models.py
+	$(ADD_DIR) sitepage/templates/sitepage/
+	@echo "$$WAGTAIL_SITEPAGE_TEMPLATE" > sitepage/templates/sitepage/site_page.html
+	@echo "INSTALLED_APPS.append('sitepage')" >> $(DJANGO_SETTINGS_BASE_FILE)
+	python manage.py makemigrations sitepage
+	-$(GIT_ADD) sitepage/templates
+	-$(GIT_ADD) sitepage/*.py
+	-$(GIT_ADD) sitepage/migrations/*.py
 
 wagtail-templates-default:
 	@echo "$$WAGTAIL_BASE_TEMPLATE" > backend/templates/base.html
-	@echo "$$WAGTAIL_HTML_OFFCANVAS" > backend/templates/offcanvas.html
+	@echo "$$WAGTAIL_OFFCANVAS_TEMPLATE" > backend/templates/offcanvas.html
 	-$(GIT_ADD) backend/templates/
-
-wagtail-project-default:
-	wagtail start backend .
-	-$(GIT_ADD) backend/
-	-$(GIT_ADD) .dockerignore
-	-$(GIT_ADD) Dockerfile
-	-$(GIT_ADD) manage.py
-	-$(GIT_ADD) requirements.txt
 
 wagtail-urls-default:
 	@echo "$$WAGTAIL_URLS" > backend/urls.py
 
 wagtail-urls-home-default:
 	@echo "urlpatterns += [path('', include('wagtail.urls'))]" >> backend/urls.py
-
-wagtail-install-default:
-	$(ENSURE_PIP)
-	python -m pip install \
-        wagtail \
-        wagtailmenus \
-        wagtail-color-panel \
-        wagtail-django-recaptcha \
-        wagtail-markdown \
-        wagtail-modeladmin \
-        wagtail-seo \
-        weasyprint \
-        whitenoise \
-        xhtml2pdf
 
 webpack-init-default: npm-init
 	@echo "$$WEBPACK_CONFIG_JS" > webpack.config.js
@@ -4099,45 +4120,27 @@ webpack-reveal-init-default: npm-init
 	-$(GIT_ADD) index.html
 	$(MAKE) gitignore
 
-wagtail-contactpage-default:
-	python manage.py startapp contactpage
-	@echo "$$WAGTAIL_CONTACT_PAGE_MODEL" > contactpage/models.py
-	@echo "$$WAGTAIL_CONTACT_PAGE_TEST" > contactpage/tests.py
-	$(ADD_DIR) contactpage/templates/contactpage/
-	@echo "$$WAGTAIL_CONTACT_PAGE_TEMPLATE" > contactpage/templates/contactpage/contact_page.html
-	@echo "$$WAGTAIL_CONTACT_PAGE_LANDING" > contactpage/templates/contactpage/contact_page_landing.html
-	@echo "INSTALLED_APPS.append('contactpage')" >> $(DJANGO_SETTINGS_BASE_FILE)
-	python manage.py makemigrations contactpage
-	-$(GIT_ADD) contactpage/templates
-	-$(GIT_ADD) contactpage/*.py
-	-$(GIT_ADD) contactpage/migrations/*.py
+# --------------------------------------------------------------------------------
+# Single-line phony target rules
+# --------------------------------------------------------------------------------
 
-wagtail-sitepage-default:
-	python manage.py startapp sitepage
-	@echo "$$SITEPAGE_MODEL" > sitepage/models.py
-	$(ADD_DIR) sitepage/templates/sitepage/
-	@echo "$$SITEPAGE_TEMPLATE" > sitepage/templates/sitepage/site_page.html
-	@echo "INSTALLED_APPS.append('sitepage')" >> $(DJANGO_SETTINGS_BASE_FILE)
-	python manage.py makemigrations sitepage
-	-$(GIT_ADD) sitepage/templates
-	-$(GIT_ADD) sitepage/*.py
-	-$(GIT_ADD) sitepage/migrations/*.py
-
-# ------------------------------------------------------------------------------  
-# More rules
-# ------------------------------------------------------------------------------  
-
+as-default: git-commit-alpha-sort git-push
+alpha-default: git-commit-alpha-sort git-push
+alpha-sort-default: git-commit-alpha-sort git-push
+aws-check-env-default: aws-check-env-profile aws-check-env-region
 b-default: build
 build-default: pip-install
 c-default: clean
 ce-default: git-commit-edit-push
 clean-default: wagtail-clean
+clean-up-default: git-commit-clean-up git-push
 cp-alpha-sort-default: git-commit-alpha-sort git-push
 cp-as-default: git-commit-alpha-sort git-push
 cp-clean-up-default: git-commit-clean-up git-push
 cp-default: git-commit-push
 cp-lint-default: git-commit-lint git-push
 cp-upgrade-default: git-commit-upgrade git-push
+cp-wording-default: git-commit-wording git-push
 create-default: eb-create
 d-default: deploy
 db-dump-default: eb-pg-export
@@ -4180,7 +4183,7 @@ m-default: django-migrate
 migrate-default: django-migrate
 migrations-default: django-migrations
 migrations-show-default: django-migrations-show
-mk-default: custom-makefile
+mk-default: makefile-custom
 o-default: open
 open-default: django-open
 p-default: git-push
@@ -4206,9 +4209,11 @@ upgrade-default: pip-install-upgrade
 urls-default: django-show-urls
 wagtail-init-default: django-wagtail-init
 webpack-default: webpack-init
+wording: git-commit-wording git-push
 
 # --------------------------------------------------------------------------------
-# Overrides
+# Allow customizing rules defined in this Makefile with rules defined in
+# $(MAKEFILE_CUSTOM_FILE)
 # --------------------------------------------------------------------------------
 
 %: %-default  # https://stackoverflow.com/a/49804748
