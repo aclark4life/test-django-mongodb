@@ -45,4 +45,4 @@ LOGGING = {
 INTERNAL_IPS = ["127.0.0.1",]
 INSTALLED_APPS.append('django.contrib.admindocs')  # noqa
 MIDDLEWARE.append('debug_toolbar.middleware.DebugToolbarMiddleware')  # noqa
-SECRET_KEY = 'LOsv/StxO+bUw2c90lRco5cqxRj+/Y92w4m/RVorh68pfltYBnLG58xTASge3LFQ'
+SECRET_KEY = '8WHtbI97KcFL8obHk82Iy1QFsSVrYCPs//a1MUvKh96ygaTVQokK8PEc1B/cNRRW'
