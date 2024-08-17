@@ -60,15 +60,15 @@ MAKEFILE_CUSTOM_FILE := project.mk
 PACKAGE_NAME = $(shell echo $(PROJECT_NAME) | sed 's/-/_/g')
 PAGER ?= less
 PIP_ENSURE = python -m ensurepip
-PIP_CONSTRAINTS_PLONE = https://dist.plone.org/release/6.0.11.1/constraints.txt
+PIP_INSTALL_PLONE_CONSTRAINTS = https://dist.plone.org/release/6.0.11.1/constraints.txt
 PROJECT_DIRS = backend contactpage home privacy siteuser
 PROJECT_EMAIL := aclark@aclark.net
 PROJECT_NAME = project-makefile
 RANDIR := $(shell openssl rand -base64 12 | sed 's/\///g')
 TMPDIR := $(shell mktemp -d)
 UNAME := $(shell uname)
-WAGTAIL_CLEAN_DIRS = home search backend sitepage siteuser privacy frontend contactpage model_form_demo logging_demo payments node_modules
-WAGTAIL_CLEAN_FILES = .dockerignore Dockerfile manage.py requirements.txt requirements-test.txt docker-compose.yml .babelrc .browserslistrc .eslintrc .gitignore .nvmrc .stylelintrc.json package-lock.json package.json postcss.config.js
+WAGTAIL_CLEAN_DIRS = backend contactpage frontend home logging_demo model_form_demo node_modules payments privacy search sitepage siteuser
+WAGTAIL_CLEAN_FILES = .babelrc .browserslistrc .dockerignore .eslintrc .gitignore .nvmrc .stylelintrc.json Dockerfile db.sqlite3 docker-compose.yml manage.py package-lock.json package.json postcss.config.js requirements-test.txt requirements.txt
 
 # --------------------------------------------------------------------------------
 # Include $(MAKEFILE_CUSTOM_FILE) if it exists
@@ -82,49 +82,69 @@ endif
 # Multi-line variables to be used in phony target rules
 # --------------------------------------------------------------------------------
 
-define EB_CUSTOM_ENV_VAR_FILE
-#!/bin/bash
-
-# Via https://aws.amazon.com/premiumsupport/knowledge-center/elastic-beanstalk-env-variables-linux2/
-
-#Create a copy of the environment variable file.
-cat /opt/elasticbeanstalk/deployment/env | perl -p -e 's/(.*)=(.*)/export $$1="$$2"/;' > /opt/elasticbeanstalk/deployment/custom_env_var
-
-#Set permissions to the custom_env_var file so this file can be accessed by any user on the instance. You can restrict permissions as per your requirements.
-chmod 644 /opt/elasticbeanstalk/deployment/custom_env_var
-
-# add the virtual env path in.
-VENV=/var/app/venv/`ls /var/app/venv`
-cat <<EOF >> /opt/elasticbeanstalk/deployment/custom_env_var
-VENV=$$ENV
-EOF
-
-#Remove duplicate files upon deployment.
-rm -f /opt/elasticbeanstalk/deployment/*.bak
-endef
-
-define EB_CUSTOM_ENV_EC2_USER
-files:
-    "/home/ec2-user/.bashrc":
-        mode: "000644"
-        owner: ec2-user
-        group: ec2-user
-        content: |
-            # .bashrc
-
-            # Source global definitions
-            if [ -f /etc/bashrc ]; then
-                    . /etc/bashrc
-            fi
-
-            # User specific aliases and functions
-            set -o vi
-
-            source <(sed -E -n 's/[^#]+/export &/ p' /opt/elasticbeanstalk/deployment/custom_env_var)
-endef
-
 define DJANGO_ALLAUTH_LAYOUT_BASE
 {% extends 'base.html' %}
+endef
+
+define DJANGO_APP_TESTS
+from django.test import TestCase
+from django.urls import reverse
+from .models import YourModel
+from .forms import YourForm
+
+
+class YourModelTest(TestCase):
+    def setUp(self):
+        self.instance = YourModel.objects.create(field1="value1", field2="value2")
+
+    def test_instance_creation(self):
+        self.assertIsInstance(self.instance, YourModel)
+        self.assertEqual(self.instance.field1, "value1")
+        self.assertEqual(self.instance.field2, "value2")
+
+    def test_str_method(self):
+        self.assertEqual(str(self.instance), "Expected String Representation")
+
+
+class YourViewTest(TestCase):
+    def setUp(self):
+        self.instance = YourModel.objects.create(field1="value1", field2="value2")
+
+    def test_view_url_exists_at_desired_location(self):
+        response = self.client.get("/your-url/")
+        self.assertEqual(response.status_code, 200)
+
+    def test_view_url_accessible_by_name(self):
+        response = self.client.get(reverse("your-view-name"))
+        self.assertEqual(response.status_code, 200)
+
+    def test_view_uses_correct_template(self):
+        response = self.client.get(reverse("your-view-name"))
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, "your_template.html")
+
+    def test_view_context(self):
+        response = self.client.get(reverse("your-view-name"))
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("context_variable", response.context)
+
+
+class YourFormTest(TestCase):
+    def test_form_valid_data(self):
+        form = YourForm(data={"field1": "value1", "field2": "value2"})
+        self.assertTrue(form.is_valid())
+
+    def test_form_invalid_data(self):
+        form = YourForm(data={"field1": "", "field2": "value2"})
+        self.assertFalse(form.is_valid())
+        self.assertIn("field1", form.errors)
+
+    def test_form_save(self):
+        form = YourForm(data={"field1": "value1", "field2": "value2"})
+        if form.is_valid():
+            instance = form.save()
+            self.assertEqual(instance.field1, "value1")
+            self.assertEqual(instance.field2, "value2")
 endef
 
 define DJANGO_AUTHENTICATION_BACKENDS
@@ -224,31 +244,11 @@ define DJANGO_CUSTOM_ADMIN
 from django.contrib.admin import AdminSite
 
 class CustomAdminSite(AdminSite):
-    site_header = 'Project Makefile'
-    site_title = 'Project Makefile'
-    index_title = 'Project Makefile'
+    site_header = "Project Makefile"
+    site_title = "Project Makefile"
+    index_title = "Project Makefile"
 
-custom_admin_site = CustomAdminSite(name='custom_admin')
-endef
-
-define DJANGO_DOCKERFILE
-FROM amazonlinux:2023
-RUN dnf install -y shadow-utils python3.11 python3.11-pip make nodejs20-npm nodejs postgresql15 postgresql15-server
-USER postgres
-RUN initdb -D /var/lib/pgsql/data
-USER root
-RUN useradd wagtail
-EXPOSE 8000
-ENV PYTHONUNBUFFERED=1 PORT=8000
-COPY requirements.txt /
-RUN python3.11 -m pip install -r /requirements.txt
-WORKDIR /app
-RUN chown wagtail:wagtail /app
-COPY --chown=wagtail:wagtail . .
-USER wagtail
-RUN npm-20 install; npm-20 run build
-RUN python3.11 manage.py collectstatic --noinput --clear
-CMD set -xe; pg_ctl -D /var/lib/pgsql/data -l /tmp/logfile start; python3.11 manage.py migrate --noinput; gunicorn backend.wsgi:application
+custom_admin_site = CustomAdminSite(name="custom_admin")
 endef
 
 define DJANGO_DOCKERCOMPOSE
@@ -280,21 +280,47 @@ volumes:
   postgres_data:
 endef
 
+define DJANGO_DOCKERFILE
+FROM amazonlinux:2023
+RUN dnf install -y shadow-utils python3.11 python3.11-pip make nodejs20-npm nodejs postgresql15 postgresql15-server
+USER postgres
+RUN initdb -D /var/lib/pgsql/data
+USER root
+RUN useradd wagtail
+EXPOSE 8000
+ENV PYTHONUNBUFFERED=1 PORT=8000
+COPY requirements.txt /
+RUN python3.11 -m pip install -r /requirements.txt
+WORKDIR /app
+RUN chown wagtail:wagtail /app
+COPY --chown=wagtail:wagtail . .
+USER wagtail
+RUN npm-20 install; npm-20 run build
+RUN python3.11 manage.py collectstatic --noinput --clear
+CMD set -xe; pg_ctl -D /var/lib/pgsql/data -l /tmp/logfile start; python3.11 manage.py migrate --noinput; gunicorn backend.wsgi:application
+endef
+
 define DJANGO_FAVICON_TEMPLATE
 {% load static %}
 <link href="{% static 'wagtailadmin/images/favicon.ico' %}" rel="icon">
 endef
 
 define DJANGO_FOOTER_TEMPLATE
-  <footer class="footer mt-auto py-3 bg-body-tertiary pt-5 text-center text-small">
+<footer class="footer mt-auto py-3 bg-body-tertiary pt-5 text-center text-small">
     <p class="mb-1">&copy; {% now "Y" %} {{ current_site.site_name|default:"Project Makefile" }}</p>
     <ul class="list-inline">
-      <li class="list-inline-item"><a class="text-secondary text-decoration-none {% if request.path == '/' %}active{% endif %}" href="/">Home</a></li>
-      {% for child in current_site.root_page.get_children %}
-          <li class="list-inline-item"><a class="text-secondary text-decoration-none {% if request.path == child.url %}active{% endif %}" href="{{ child.url }}">{{ child }}</a></li>
-      {% endfor %}
+        <li class="list-inline-item">
+            <a class="text-secondary text-decoration-none {% if request.path == '/' %}active{% endif %}"
+               href="/">Home</a>
+        </li>
+        {% for child in current_site.root_page.get_children %}
+            <li class="list-inline-item">
+                <a class="text-secondary text-decoration-none {% if request.path == child.url %}active{% endif %}"
+                   href="{{ child.url }}">{{ child }}</a>
+            </li>
+        {% endfor %}
     </ul>
-  </footer>
+</footer>
 endef
 
 define DJANGO_FRONTEND_APP
@@ -355,69 +381,6 @@ endef
 define DJANGO_FRONTEND_COMPONENTS
 export { default as ErrorBoundary } from './ErrorBoundary';
 export { default as UserMenu } from './UserMenu';
-endef
-
-define DJANGO_FRONTEND_CONTEXT_INDEX
-export { UserContextProvider as default } from './UserContextProvider';
-endef
-
-define DJANGO_FRONTEND_CONTEXT_USER_PROVIDER
-// UserContextProvider.js
-import React, { createContext, useContext, useState } from 'react';
-import PropTypes from 'prop-types';
-
-const UserContext = createContext();
-
-export const UserContextProvider = ({ children }) => {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-
-  const login = () => {
-    try {
-      // Add logic to handle login, set isAuthenticated to true
-      setIsAuthenticated(true);
-    } catch (error) {
-      console.error('Login error:', error);
-      // Handle error, e.g., show an error message to the user
-    }
-  };
-
-  const logout = () => {
-    try {
-      // Add logic to handle logout, set isAuthenticated to false
-      setIsAuthenticated(false);
-    } catch (error) {
-      console.error('Logout error:', error);
-      // Handle error, e.g., show an error message to the user
-    }
-  };
-
-  return (
-    <UserContext.Provider value={{ isAuthenticated, login, logout }}>
-      {children}
-    </UserContext.Provider>
-  );
-};
-
-UserContextProvider.propTypes = {
-  children: PropTypes.node.isRequired,
-};
-
-export const useUserContext = () => {
-  const context = useContext(UserContext);
-
-  if (!context) {
-    throw new Error('useUserContext must be used within a UserContextProvider');
-  }
-
-  return context;
-};
-
-// Add PropTypes for the return value of useUserContext
-useUserContext.propTypes = {
-  isAuthenticated: PropTypes.bool.isRequired,
-  login: PropTypes.func.isRequired,
-  logout: PropTypes.func.isRequired,
-};
 endef
 
 define DJANGO_FRONTEND_COMPONENT_CLOCK
@@ -557,6 +520,69 @@ UserMenu.propTypes = {
 export default UserMenu;
 endef
 
+define DJANGO_FRONTEND_CONTEXT_INDEX
+export { UserContextProvider as default } from './UserContextProvider';
+endef
+
+define DJANGO_FRONTEND_CONTEXT_USER_PROVIDER
+// UserContextProvider.js
+import React, { createContext, useContext, useState } from 'react';
+import PropTypes from 'prop-types';
+
+const UserContext = createContext();
+
+export const UserContextProvider = ({ children }) => {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+  const login = () => {
+    try {
+      // Add logic to handle login, set isAuthenticated to true
+      setIsAuthenticated(true);
+    } catch (error) {
+      console.error('Login error:', error);
+      // Handle error, e.g., show an error message to the user
+    }
+  };
+
+  const logout = () => {
+    try {
+      // Add logic to handle logout, set isAuthenticated to false
+      setIsAuthenticated(false);
+    } catch (error) {
+      console.error('Logout error:', error);
+      // Handle error, e.g., show an error message to the user
+    }
+  };
+
+  return (
+    <UserContext.Provider value={{ isAuthenticated, login, logout }}>
+      {children}
+    </UserContext.Provider>
+  );
+};
+
+UserContextProvider.propTypes = {
+  children: PropTypes.node.isRequired,
+};
+
+export const useUserContext = () => {
+  const context = useContext(UserContext);
+
+  if (!context) {
+    throw new Error('useUserContext must be used within a UserContextProvider');
+  }
+
+  return context;
+};
+
+// Add PropTypes for the return value of useUserContext
+useUserContext.propTypes = {
+  isAuthenticated: PropTypes.bool.isRequired,
+  login: PropTypes.func.isRequired,
+  logout: PropTypes.func.isRequired,
+};
+endef
+
 define DJANGO_FRONTEND_ESLINTRC
 {
     "env": {
@@ -626,31 +652,6 @@ define DJANGO_FRONTEND_OFFCANVAS_TEMPLATE
 </div>
 endef
 
-define DJANGO_FRONTEND_STYLES
-// If you comment out code below, bootstrap will use red as primary color
-// and btn-primary will become red
-
-// $primary: red;
-
-@import "~bootstrap/scss/bootstrap.scss";
-
-.jumbotron {
-  // should be relative path of the entry scss file
-  background-image: url("../../vendors/images/sample.jpg");
-  background-size: cover;
-}
-
-#theme-toggler-authenticated:hover {
-    cursor: pointer; /* Change cursor to pointer on hover */
-    color: #007bff; /* Change color on hover */
-}
-
-#theme-toggler-anonymous:hover {
-    cursor: pointer; /* Change cursor to pointer on hover */
-    color: #007bff; /* Change color on hover */
-}
-endef
-
 define DJANGO_FRONTEND_PORTAL
 // Via pwellever
 import React from 'react';
@@ -705,6 +706,31 @@ export default function getPageComponents (components) {
   };
 
   return Array.from(document.querySelectorAll('[data-component]')).map(getPortalComponent);
+}
+endef
+
+define DJANGO_FRONTEND_STYLES
+// If you comment out code below, bootstrap will use red as primary color
+// and btn-primary will become red
+
+// $primary: red;
+
+@import "~bootstrap/scss/bootstrap.scss";
+
+.jumbotron {
+  // should be relative path of the entry scss file
+  background-image: url("../../vendors/images/sample.jpg");
+  background-size: cover;
+}
+
+#theme-toggler-authenticated:hover {
+    cursor: pointer; /* Change cursor to pointer on hover */
+    color: #007bff; /* Change color on hover */
+}
+
+#theme-toggler-anonymous:hover {
+    cursor: pointer; /* Change cursor to pointer on hover */
+    color: #007bff; /* Change color on hover */
 }
 endef
 
@@ -842,11 +868,12 @@ define DJANGO_HEADER_TEMPLATE
 </div>
 endef 
 
-define DJANGO_HOME_PAGE_VIEWS
-from django.views.generic import TemplateView
-
-class HomeView(TemplateView):
-    template_name = "home.html"
+define DJANGO_HOME_PAGE_TEMPLATE
+{% extends "base.html" %}
+{% block content %}
+    <main class="{% block main_class %}{% endblock %}">
+    </main>
+{% endblock %}
 endef
 
 define DJANGO_HOME_PAGE_URLS
@@ -858,33 +885,11 @@ urlpatterns = [
 ]
 endef
 
-define DJANGO_HOME_PAGE_TEMPLATE
-{% extends "base.html" %}
-{% block content %}
-    <main class="{% block main_class %}{% endblock %}">
-    </main>
-{% endblock %}
-endef
+define DJANGO_HOME_PAGE_VIEWS
+from django.views.generic import TemplateView
 
-define DJANGO_LOGGING_DEMO_VIEWS
-from django.http import HttpResponse
-import logging
-
-# Get an instance of a logger
-logger = logging.getLogger(__name__)
-
-def logging_demo(request):
-    logger.debug('Hello, world!')
-    return HttpResponse("Hello, world!")
-endef
-
-define DJANGO_LOGGING_DEMO_URLS
-from django.urls import path
-from .views import logging_demo
-
-urlpatterns = [
-    path('', logging_demo, name='logging_demo'),
-]
+class HomeView(TemplateView):
+    template_name = "home.html"
 endef
 
 define DJANGO_LOGGING_DEMO_SETTINGS
@@ -901,6 +906,27 @@ LOGGING = {
         'level': 'DEBUG',
     },
 }
+endef
+
+define DJANGO_LOGGING_DEMO_URLS
+from django.urls import path
+from .views import logging_demo
+
+urlpatterns = [
+    path('', logging_demo, name='logging_demo'),
+]
+endef
+
+define DJANGO_LOGGING_DEMO_VIEWS
+from django.http import HttpResponse
+import logging
+
+# Get an instance of a logger
+logger = logging.getLogger(__name__)
+
+def logging_demo(request):
+    logger.debug('Hello, world!')
+    return HttpResponse("Hello, world!")
 endef
 
 define DJANGO_MANAGE_PY
@@ -928,6 +954,25 @@ if __name__ == "__main__":
     main()
 endef
 
+define DJANGO_MODEL_FORM_DEMO_ADMIN
+from django.contrib import admin
+from .models import ModelFormDemo
+
+@admin.register(ModelFormDemo)
+class ModelFormDemoAdmin(admin.ModelAdmin):
+    pass
+endef
+
+define DJANGO_MODEL_FORM_DEMO_FORMS
+from django import forms
+from .models import ModelFormDemo
+
+class ModelFormDemoForm(forms.ModelForm):
+    class Meta:
+        model = ModelFormDemo
+        fields = ['name', 'email', 'age', 'is_active']  # Add or remove fields as needed
+endef
+
 define DJANGO_MODEL_FORM_DEMO_MODEL
 from django.db import models
 from django.shortcuts import reverse
@@ -946,13 +991,59 @@ class ModelFormDemo(models.Model):
         return reverse('model_form_demo_detail', kwargs={'pk': self.pk})
 endef
 
-define DJANGO_MODEL_FORM_DEMO_ADMIN
-from django.contrib import admin
-from .models import ModelFormDemo
+define DJANGO_MODEL_FORM_DEMO_TEMPLATE_DETAIL
+{% extends 'base.html' %}
+{% block content %}
+    <h1>Test Model Detail: {{ model_form_demo.name }}</h1>
+    <p>Name: {{ model_form_demo.name }}</p>
+    <p>Email: {{ model_form_demo.email }}</p>
+    <p>Age: {{ model_form_demo.age }}</p>
+    <p>Active: {{ model_form_demo.is_active }}</p>
+    <p>Created At: {{ model_form_demo.created_at }}</p>
+    <a href="{% url 'model_form_demo_update' model_form_demo.pk %}">Edit Test Model</a>
+{% endblock %}
+endef
 
-@admin.register(ModelFormDemo)
-class ModelFormDemoAdmin(admin.ModelAdmin):
-    pass
+define DJANGO_MODEL_FORM_DEMO_TEMPLATE_FORM
+{% extends 'base.html' %}
+{% block content %}
+    <h1>{% if form.instance.pk %}Update Test Model{% else %}Create Test Model{% endif %}</h1>
+    <form method="post">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button type="submit">Save</button>
+    </form>
+{% endblock %}
+endef
+
+define DJANGO_MODEL_FORM_DEMO_TEMPLATE_LIST
+{% extends 'base.html' %}
+{% block content %}
+    <h1>Test Models List</h1>
+    <ul>
+        {% for model_form_demo in model_form_demos %}
+            <li><a href="{% url 'model_form_demo_detail' model_form_demo.pk %}">{{ model_form_demo.name }}</a></li>
+        {% endfor %}
+    </ul>
+    <a href="{% url 'model_form_demo_create' %}">Create New Test Model</a>
+{% endblock %}
+endef
+
+define DJANGO_MODEL_FORM_DEMO_URLS
+from django.urls import path
+from .views import (
+    ModelFormDemoListView,
+    ModelFormDemoCreateView,
+    ModelFormDemoUpdateView,
+    ModelFormDemoDetailView,
+)
+
+urlpatterns = [
+    path('', ModelFormDemoListView.as_view(), name='model_form_demo_list'),
+    path('create/', ModelFormDemoCreateView.as_view(), name='model_form_demo_create'),
+    path('<int:pk>/update/', ModelFormDemoUpdateView.as_view(), name='model_form_demo_update'),
+    path('<int:pk>/', ModelFormDemoDetailView.as_view(), name='model_form_demo_detail'),
+]
 endef
 
 define DJANGO_MODEL_FORM_DEMO_VIEWS
@@ -987,71 +1078,6 @@ class ModelFormDemoDetailView(DetailView):
     model = ModelFormDemo
     template_name = "model_form_demo_detail.html"
     context_object_name = "model_form_demo"
-endef
-
-define DJANGO_MODEL_FORM_DEMO_FORMS
-from django import forms
-from .models import ModelFormDemo
-
-class ModelFormDemoForm(forms.ModelForm):
-    class Meta:
-        model = ModelFormDemo
-        fields = ['name', 'email', 'age', 'is_active']  # Add or remove fields as needed
-endef
-
-define DJANGO_MODEL_FORM_DEMO_TEMPLATE_FORM
-{% extends 'base.html' %}
-{% block content %}
-    <h1>{% if form.instance.pk %}Update Test Model{% else %}Create Test Model{% endif %}</h1>
-    <form method="post">
-        {% csrf_token %}
-        {{ form.as_p }}
-        <button type="submit">Save</button>
-    </form>
-{% endblock %}
-endef
-
-define DJANGO_MODEL_FORM_DEMO_TEMPLATE_DETAIL
-{% extends 'base.html' %}
-{% block content %}
-    <h1>Test Model Detail: {{ model_form_demo.name }}</h1>
-    <p>Name: {{ model_form_demo.name }}</p>
-    <p>Email: {{ model_form_demo.email }}</p>
-    <p>Age: {{ model_form_demo.age }}</p>
-    <p>Active: {{ model_form_demo.is_active }}</p>
-    <p>Created At: {{ model_form_demo.created_at }}</p>
-    <a href="{% url 'model_form_demo_update' model_form_demo.pk %}">Edit Test Model</a>
-{% endblock %}
-endef
-
-define DJANGO_MODEL_FORM_DEMO_TEMPLATE_LIST
-{% extends 'base.html' %}
-{% block content %}
-    <h1>Test Models List</h1>
-    <ul>
-        {% for model_form_demo in model_form_demos %}
-            <li><a href="{% url 'model_form_demo_detail' model_form_demo.pk %}">{{ model_form_demo.name }}</a></li>
-        {% endfor %}
-    </ul>
-    <a href="{% url 'model_form_demo_create' %}">Create New Test Model</a>
-{% endblock %}
-endef
-
-define DJANGO_MODEL_FORM_DEMO_URLS
-from django.urls import path
-from .views import (
-    ModelFormDemoListView,
-    ModelFormDemoCreateView,
-    ModelFormDemoUpdateView,
-    ModelFormDemoDetailView,
-)
-
-urlpatterns = [
-    path('', ModelFormDemoListView.as_view(), name='model_form_demo_list'),
-    path('create/', ModelFormDemoCreateView.as_view(), name='model_form_demo_create'),
-    path('<int:pk>/update/', ModelFormDemoUpdateView.as_view(), name='model_form_demo_update'),
-    path('<int:pk>/', ModelFormDemoDetailView.as_view(), name='model_form_demo_detail'),
-]
 endef
 
 define DJANGO_PAYMENTS_ADMIN
@@ -1159,6 +1185,76 @@ class Order(models.Model):
         return f"Order {self.id} for {self.product.name}"
 endef
 
+define DJANGO_PAYMENTS_TEMPLATE_CANCEL
+{% extends "base.html" %}
+
+{% block title %}Cancel{% endblock %}
+
+{% block content %}
+<h1>Payment Cancelled</h1>
+<p>Your payment was cancelled.</p>
+{% endblock %}
+endef
+
+define DJANGO_PAYMENTS_TEMPLATE_CHECKOUT
+{% extends "base.html" %}
+
+{% block title %}Checkout{% endblock %}
+
+{% block content %}
+<h1>Checkout</h1>
+<form action="{% url 'checkout' %}" method="post">
+    {% csrf_token %}
+    <button type="submit">Pay</button>
+</form>
+{% endblock %}
+endef
+
+define DJANGO_PAYMENTS_TEMPLATE_PRODUCT_DETAIL
+{% extends "base.html" %}
+
+{% block title %}{{ product.name }}{% endblock %}
+
+{% block content %}
+<h1>{{ product.name }}</h1>
+<p>{{ product.description }}</p>
+<p>Price: ${{ product.price }}</p>
+<form action="{% url 'checkout' %}" method="post">
+    {% csrf_token %}
+    <input type="hidden" name="product_id" value="{{ product.id }}">
+    <button type="submit">Buy Now</button>
+</form>
+{% endblock %}
+endef
+
+define DJANGO_PAYMENTS_TEMPLATE_PRODUCT_LIST
+{% extends "base.html" %}
+
+{% block title %}Products{% endblock %}
+
+{% block content %}
+<h1>Products</h1>
+<ul>
+    {% for product in products %}
+    <li>
+        <a href="{% url 'product_detail' product.pk %}">{{ product.name }} - {{ product.price }}</a>
+    </li>
+    {% endfor %}
+</ul>
+{% endblock %}
+endef
+
+define DJANGO_PAYMENTS_TEMPLATE_SUCCESS
+{% extends "base.html" %}
+
+{% block title %}Success{% endblock %}
+
+{% block content %}
+<h1>Payment Successful</h1>
+<p>Thank you for your purchase!</p>
+{% endblock %}
+endef
+
 define DJANGO_PAYMENTS_URLS
 from django.urls import path
 from .views import CheckoutView, SuccessView, CancelView, ProductListView, ProductDetailView
@@ -1231,76 +1327,6 @@ class CancelView(TemplateView):
     template_name = 'payments/cancel.html'
 endef
 
-define DJANGO_PAYMENTS_TEMPLATE_CANCEL
-{% extends "base.html" %}
-
-{% block title %}Cancel{% endblock %}
-
-{% block content %}
-<h1>Payment Cancelled</h1>
-<p>Your payment was cancelled.</p>
-{% endblock %}
-endef
-
-define DJANGO_PAYMENTS_TEMPLATE_CHECKOUT
-{% extends "base.html" %}
-
-{% block title %}Checkout{% endblock %}
-
-{% block content %}
-<h1>Checkout</h1>
-<form action="{% url 'checkout' %}" method="post">
-    {% csrf_token %}
-    <button type="submit">Pay</button>
-</form>
-{% endblock %}
-endef
-
-define DJANGO_PAYMENTS_TEMPLATE_SUCCESS
-{% extends "base.html" %}
-
-{% block title %}Success{% endblock %}
-
-{% block content %}
-<h1>Payment Successful</h1>
-<p>Thank you for your purchase!</p>
-{% endblock %}
-endef
-
-define DJANGO_PAYMENTS_TEMPLATE_PRODUCT_DETAIL
-{% extends "base.html" %}
-
-{% block title %}{{ product.name }}{% endblock %}
-
-{% block content %}
-<h1>{{ product.name }}</h1>
-<p>{{ product.description }}</p>
-<p>Price: ${{ product.price }}</p>
-<form action="{% url 'checkout' %}" method="post">
-    {% csrf_token %}
-    <input type="hidden" name="product_id" value="{{ product.id }}">
-    <button type="submit">Buy Now</button>
-</form>
-{% endblock %}
-endef
-
-define DJANGO_PAYMENTS_TEMPLATE_PRODUCT_LIST
-{% extends "base.html" %}
-
-{% block title %}Products{% endblock %}
-
-{% block content %}
-<h1>Products</h1>
-<ul>
-    {% for product in products %}
-    <li>
-        <a href="{% url 'product_detail' product.pk %}">{{ product.name }} - {{ product.price }}</a>
-    </li>
-    {% endfor %}
-</ul>
-{% endblock %}
-endef
-
 define DJANGO_REST_SERIALIZERS
 from rest_framework import serializers
 from siteuser.models import User
@@ -1336,68 +1362,6 @@ from django import forms
 class SearchForm(forms.Form):
     query = forms.CharField(max_length=100, required=True, label='Search')
 
-endef
-
-define DJANGO_SEARCH_UTILS
-from django.apps import apps
-from django.conf import settings
-
-def get_search_models():
-    models = []
-    for model_path in settings.SEARCH_MODELS:
-        app_label, model_name = model_path.split('.')
-        model = apps.get_model(app_label, model_name)
-        models.append(model)
-    return models
-endef
-
-define DJANGO_SEARCH_URLS
-from django.urls import path
-from .views import SearchView
-
-urlpatterns = [
-    path('search/', SearchView.as_view(), name='search'),
-]
-endef
-
-define DJANGO_SEARCH_VIEWS
-from django.views.generic import ListView
-from django.db import models
-from django.db.models import Q 
-from .forms import SearchForm
-from .utils import get_search_models
-
-class SearchView(ListView):
-    template_name = 'your_app/search_results.html'
-    context_object_name = 'results'
-    paginate_by = 10
-
-    def get_queryset(self):
-        form = SearchForm(self.request.GET)
-        query = None
-        results = []
-
-        if form.is_valid():
-            query = form.cleaned_data['query']
-            search_models = get_search_models()
-
-            for model in search_models:
-                fields = [f.name for f in model._meta.fields if isinstance(f, (models.CharField, models.TextField))]
-                queries = [Q(**{f"{field}__icontains": query}) for field in fields]
-                model_results = model.objects.filter(queries.pop())
-
-                for item in queries:
-                    model_results = model_results.filter(item)
-
-                results.extend(model_results)
-
-        return results
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context['form'] = SearchForm(self.request.GET)
-        context['query'] = self.request.GET.get('query', '')
-        return context
 endef
 
 define DJANGO_SEARCH_SETTINGS
@@ -1446,6 +1410,68 @@ define DJANGO_SEARCH_TEMPLATE
 {% endblock %}
 endef
 
+define DJANGO_SEARCH_URLS
+from django.urls import path
+from .views import SearchView
+
+urlpatterns = [
+    path('search/', SearchView.as_view(), name='search'),
+]
+endef
+
+define DJANGO_SEARCH_UTILS
+from django.apps import apps
+from django.conf import settings
+
+def get_search_models():
+    models = []
+    for model_path in settings.SEARCH_MODELS:
+        app_label, model_name = model_path.split('.')
+        model = apps.get_model(app_label, model_name)
+        models.append(model)
+    return models
+endef
+
+define DJANGO_SEARCH_VIEWS
+from django.views.generic import ListView
+from django.db import models
+from django.db.models import Q 
+from .forms import SearchForm
+from .utils import get_search_models
+
+class SearchView(ListView):
+    template_name = 'your_app/search_results.html'
+    context_object_name = 'results'
+    paginate_by = 10
+
+    def get_queryset(self):
+        form = SearchForm(self.request.GET)
+        query = None
+        results = []
+
+        if form.is_valid():
+            query = form.cleaned_data['query']
+            search_models = get_search_models()
+
+            for model in search_models:
+                fields = [f.name for f in model._meta.fields if isinstance(f, (models.CharField, models.TextField))]
+                queries = [Q(**{f"{field}__icontains": query}) for field in fields]
+                model_results = model.objects.filter(queries.pop())
+
+                for item in queries:
+                    model_results = model_results.filter(item)
+
+                results.extend(model_results)
+
+        return results
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['form'] = SearchForm(self.request.GET)
+        context['query'] = self.request.GET.get('query', '')
+        return context
+endef
+
 define DJANGO_SETTINGS_DEV
 from .base import *  # noqa
 
@@ -1462,12 +1488,33 @@ try:
 except ImportError:
     pass
 
-LOG_LEVEL = os.environ.get("LOG_LEVEL", "DEBUG")                                  
-LOGGING = {                                                            
-    "version": 1,                                                             
-    "disable_existing_loggers": False,                                    
-    "handlers": {"console": {"class": "logging.StreamHandler"}},    
-    "root": {"handlers": ["console"], "level": "WARNING"},     
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "verbose": {
+            "format": "{levelname} {asctime} {module} {message}",
+            "style": "{",
+        },
+        "simple": {
+            "format": "{levelname} {message}",
+            "style": "{",
+        },
+    },
+    "handlers": {
+        "console": {
+            "level": "DEBUG",
+            "class": "logging.StreamHandler",
+            "formatter": "verbose",
+        },
+    },
+    "loggers": {
+        "django": {
+            "handlers": ["console"],
+            "level": "DEBUG",
+            "propagate": True,
+        },
+    },
 }
 endef
 
@@ -1502,8 +1549,8 @@ endef
 
 define DJANGO_SETTINGS_THEMES
 THEMES = [
-    ('light', 'Light Theme'),
-    ('dark', 'Dark Theme'),
+    ("light", "Light Theme"),
+    ("dark", "Dark Theme"),
 ]
 endef
 
@@ -1573,21 +1620,6 @@ urlpatterns = [
 ]
 endef
 
-define DJANGO_SITEUSER_VIEW_TEMPLATE
-{% extends 'base.html' %}
-
-{% block content %}
-<h2>User Profile</h2>
-<div class="d-flex justify-content-end">
-    <a class="btn btn-outline-secondary" href="{% url 'user-edit' pk=user.id %}">Edit</a>
-</div>
-<p>Username: {{ user.username }}</p>
-<p>Theme: {{ user.user_theme_preference }}</p>
-<p>Bio: {{ user.bio|default:""|safe }}</p>
-<p>Rate: {{ user.rate|default:"" }}</p>
-{% endblock %}
-endef
-
 define DJANGO_SITEUSER_VIEW
 import json
 
@@ -1638,6 +1670,21 @@ class UserEditView(LoginRequiredMixin, UpdateView):
     def get_success_url(self):
         # return reverse_lazy('user-profile', kwargs={'pk': self.object.pk})
         return reverse_lazy('user-profile')
+endef
+
+define DJANGO_SITEUSER_VIEW_TEMPLATE
+{% extends 'base.html' %}
+
+{% block content %}
+<h2>User Profile</h2>
+<div class="d-flex justify-content-end">
+    <a class="btn btn-outline-secondary" href="{% url 'user-edit' pk=user.id %}">Edit</a>
+</div>
+<p>Username: {{ user.username }}</p>
+<p>Theme: {{ user.user_theme_preference }}</p>
+<p>Bio: {{ user.bio|default:""|safe }}</p>
+<p>Rate: {{ user.rate|default:"" }}</p>
+{% endblock %}
 endef
 
 define DJANGO_URLS
@@ -1694,6 +1741,47 @@ def remove_urlpattern(urlpatterns, route_to_remove):
     )]
 endef
 
+define EB_CUSTOM_ENV_EC2_USER
+files:
+    "/home/ec2-user/.bashrc":
+        mode: "000644"
+        owner: ec2-user
+        group: ec2-user
+        content: |
+            # .bashrc
+
+            # Source global definitions
+            if [ -f /etc/bashrc ]; then
+                    . /etc/bashrc
+            fi
+
+            # User specific aliases and functions
+            set -o vi
+
+            source <(sed -E -n 's/[^#]+/export &/ p' /opt/elasticbeanstalk/deployment/custom_env_var)
+endef
+
+define EB_CUSTOM_ENV_VAR_FILE
+#!/bin/bash
+
+# Via https://aws.amazon.com/premiumsupport/knowledge-center/elastic-beanstalk-env-variables-linux2/
+
+#Create a copy of the environment variable file.
+cat /opt/elasticbeanstalk/deployment/env | perl -p -e 's/(.*)=(.*)/export $$1="$$2"/;' > /opt/elasticbeanstalk/deployment/custom_env_var
+
+#Set permissions to the custom_env_var file so this file can be accessed by any user on the instance. You can restrict permissions as per your requirements.
+chmod 644 /opt/elasticbeanstalk/deployment/custom_env_var
+
+# add the virtual env path in.
+VENV=/var/app/venv/`ls /var/app/venv`
+cat <<EOF >> /opt/elasticbeanstalk/deployment/custom_env_var
+VENV=$$ENV
+EOF
+
+#Remove duplicate files upon deployment.
+rm -f /opt/elasticbeanstalk/deployment/*.bak
+endef
+
 define GIT_IGNORE
 __pycache__
 *.pyc
@@ -1703,14 +1791,15 @@ _build/
 .elasticbeanstalk/
 db.sqlite3
 home/static
-endef
-
-define HTML_INDEX
-<h1>Hello world</h1>
+backend/var
 endef
 
 define HTML_ERROR
 <h1>500</h1>
+endef
+
+define HTML_INDEX
+<h1>Hello world</h1>
 endef
 
 define JENKINS_FILE
@@ -2277,57 +2366,55 @@ endef
 
 define WAGTAIL_BASE_TEMPLATE
 {% load static wagtailcore_tags wagtailuserbar webpack_loader %}
-
 <!DOCTYPE html>
-<html lang="en" class="h-100" data-bs-theme="{{ request.user.user_theme_preference|default:'light' }}">
+<html lang="en"
+      class="h-100"
+      data-bs-theme="{{ request.user.user_theme_preference|default:'light' }}">
     <head>
         <meta charset="utf-8" />
         <title>
             {% block title %}
-            {% if page.seo_title %}{{ page.seo_title }}{% else %}{{ page.title }}{% endif %}
+                {% if page.seo_title %}
+                    {{ page.seo_title }}
+                {% else %}
+                    {{ page.title }}
+                {% endif %}
             {% endblock %}
             {% block title_suffix %}
-            {% wagtail_site as current_site %}
-            {% if current_site and current_site.site_name %}- {{ current_site.site_name }}{% endif %}
+                {% wagtail_site as current_site %}
+                {% if current_site and current_site.site_name %}- {{ current_site.site_name }}{% endif %}
             {% endblock %}
         </title>
-        {% if page.search_description %}
-        <meta name="description" content="{{ page.search_description }}" />
-        {% endif %}
+        {% if page.search_description %}<meta name="description" content="{{ page.search_description }}" />{% endif %}
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-
         {# Force all links in the live preview panel to be opened in a new tab #}
-        {% if request.in_preview_panel %}
-        <base target="_blank">
-        {% endif %}
-
+        {% if request.in_preview_panel %}<base target="_blank">{% endif %}
         {% stylesheet_pack 'app' %}
-
-        {% block extra_css %}
-        {# Override this in templates to add extra stylesheets #}
-        {% endblock %}
-
+        {% block extra_css %}{# Override this in templates to add extra stylesheets #}{% endblock %}
         <style>
-          .success {
-              background-color: #d4edda;
-              border-color: #c3e6cb;
-              color: #155724;
-          }
-          .info {
-              background-color: #d1ecf1;
-              border-color: #bee5eb;
-              color: #0c5460;
-          }
-          .warning {
-              background-color: #fff3cd;
-              border-color: #ffeeba;
-              color: #856404;
-          }
-          .danger {
-              background-color: #f8d7da;
-              border-color: #f5c6cb;
-              color: #721c24;
-          }
+            .success {
+                background-color: #d4edda;
+                border-color: #c3e6cb;
+                color: #155724;
+            }
+
+            .info {
+                background-color: #d1ecf1;
+                border-color: #bee5eb;
+                color: #0c5460;
+            }
+
+            .warning {
+                background-color: #fff3cd;
+                border-color: #ffeeba;
+                color: #856404;
+            }
+
+            .danger {
+                background-color: #f8d7da;
+                border-color: #f5c6cb;
+                color: #721c24;
+            }
         </style>
         {% include 'favicon.html' %}
         {% csrf_token %}
@@ -2358,9 +2445,7 @@ define WAGTAIL_BASE_TEMPLATE
         {% include 'footer.html' %}
         {% include 'offcanvas.html' %}
         {% javascript_pack 'app' %}
-        {% block extra_js %}
-        {# Override this in templates to add extra javascript #}
-        {% endblock %}
+        {% block extra_js %}{# Override this in templates to add extra javascript #}{% endblock %}
     </body>
 </html>
 endef
@@ -2413,6 +2498,47 @@ define WAGTAIL_BLOCK_MARKETING
         {{ self.content }}
     {% endif %}
 </div>
+endef
+
+define WAGTAIL_CONTACT_PAGE_LANDING
+{% extends 'base.html' %}
+{% block content %}<div class="container"><h1>Thank you!</h1></div>{% endblock %}
+endef
+
+define WAGTAIL_CONTACT_PAGE_MODEL
+from django.db import models
+from modelcluster.fields import ParentalKey
+from wagtail.admin.panels import (
+    FieldPanel, FieldRowPanel,
+    InlinePanel, MultiFieldPanel
+)
+from wagtail.fields import RichTextField
+from wagtail.contrib.forms.models import AbstractEmailForm, AbstractFormField
+
+
+class FormField(AbstractFormField):
+    page = ParentalKey('ContactPage', on_delete=models.CASCADE, related_name='form_fields')
+
+
+class ContactPage(AbstractEmailForm):
+    intro = RichTextField(blank=True)
+    thank_you_text = RichTextField(blank=True)
+
+    content_panels = AbstractEmailForm.content_panels + [
+        FieldPanel('intro'),
+        InlinePanel('form_fields', label="Form fields"),
+        FieldPanel('thank_you_text'),
+        MultiFieldPanel([
+            FieldRowPanel([
+                FieldPanel('from_address', classname="col6"),
+                FieldPanel('to_address', classname="col6"),
+            ]),
+            FieldPanel('subject'),
+        ], "Email"),
+    ]
+
+    class Meta:
+        verbose_name = "Contact Page"
 endef
 
 define WAGTAIL_CONTACT_PAGE_TEMPLATE
@@ -2497,47 +2623,6 @@ class ContactPageTest(TestCase, WagtailPageTestCase):
         self.assertEqual(response.status_code, 302)
         
         # You may add more assertions based on your specific requirements
-endef
-
-define WAGTAIL_CONTACT_PAGE_MODEL
-from django.db import models
-from modelcluster.fields import ParentalKey
-from wagtail.admin.panels import (
-    FieldPanel, FieldRowPanel,
-    InlinePanel, MultiFieldPanel
-)
-from wagtail.fields import RichTextField
-from wagtail.contrib.forms.models import AbstractEmailForm, AbstractFormField
-
-
-class FormField(AbstractFormField):
-    page = ParentalKey('ContactPage', on_delete=models.CASCADE, related_name='form_fields')
-
-
-class ContactPage(AbstractEmailForm):
-    intro = RichTextField(blank=True)
-    thank_you_text = RichTextField(blank=True)
-
-    content_panels = AbstractEmailForm.content_panels + [
-        FieldPanel('intro'),
-        InlinePanel('form_fields', label="Form fields"),
-        FieldPanel('thank_you_text'),
-        MultiFieldPanel([
-            FieldRowPanel([
-                FieldPanel('from_address', classname="col6"),
-                FieldPanel('to_address', classname="col6"),
-            ]),
-            FieldPanel('subject'),
-        ], "Email"),
-    ]
-
-    class Meta:
-        verbose_name = "Contact Page"
-endef
-
-define WAGTAIL_CONTACT_PAGE_LANDING
-{% extends 'base.html' %}
-{% block content %}<div class="container"><h1>Thank you!</h1></div>{% endblock %}
 endef
 
 define WAGTAIL_HEADER_PREFIX
@@ -2857,6 +2942,7 @@ endef
 # ------------------------------------------------------------------------------  
 
 export DJANGO_ALLAUTH_LAYOUT_BASE
+export DJANGO_APP_TESTS
 export DJANGO_AUTHENTICATION_BACKENDS
 export DJANGO_BACKEND_APPS
 export DJANGO_BASE_TEMPLATE
@@ -3035,6 +3121,9 @@ django-allauth-template-default:
 django-allauth-default:
 	@echo "urlpatterns += [path('accounts/', include('allauth.urls'))]" >> backend/urls.py
 
+django-app-tests-default:
+	@echo "$$DJANGO_APP_TESTS" > $(APP_DIR)/tests.py
+
 django-project-default:
 	django-admin startproject backend .
 	-$(GIT_ADD) backend
@@ -3106,7 +3195,6 @@ django-init-minimal-default: separator \
 	django-migrate \
 	gitignore \
 	readme \
-	lint \
 	su \
 	serve
 
@@ -3142,7 +3230,6 @@ django-init-default: separator \
 	django-frontend \
 	django-migrate \
 	readme \
-	lint \
 	su \
 	serve
 
@@ -3185,7 +3272,6 @@ django-wagtail-init-default: separator \
 	django-frontend \
 	django-migrate \
 	readme \
-	lint \
 	su \
 	serve
 
@@ -3284,6 +3370,7 @@ django-home-default:
 	@echo "$$DJANGO_HOME_PAGE_URLS" > home/urls.py
 	@echo "INSTALLED_APPS.append('home')  # noqa" >> $(DJANGO_SETTINGS_BASE_FILE)
 	@echo "urlpatterns += [path('', include('home.urls'))]" >> backend/urls.py
+	export APP_DIR="home"; $(MAKE) django-app-tests
 	-$(GIT_ADD) home/templates
 	-$(GIT_ADD) home/*.py
 	-$(GIT_ADD) home/migrations/*.py
@@ -3402,6 +3489,7 @@ django-logging-demo-default:
 	@echo "$$DJANGO_LOGGING_DEMO_SETTINGS" >> $(DJANGO_SETTINGS_BASE_FILE)
 	@echo "INSTALLED_APPS.append('logging_demo')  # noqa" >> $(DJANGO_SETTINGS_BASE_FILE)
 	@echo "urlpatterns += [path('logging-demo/', include('logging_demo.urls'))]" >> backend/urls.py
+	export APP_DIR="logging_demo"; $(MAKE) django-app-tests
 	-$(GIT_ADD) logging_demo/*.py
 	-$(GIT_ADD) logging_demo/migrations/*.py
 
@@ -3493,6 +3581,11 @@ django-settings-prod-default:
 django-crispy-default:
 	@echo "CRISPY_TEMPLATE_PACK = 'bootstrap5'" >> $(DJANGO_SETTINGS_BASE_FILE)
 	@echo "CRISPY_ALLOWED_TEMPLATE_PACKS = 'bootstrap5'" >> $(DJANGO_SETTINGS_BASE_FILE)
+
+django-lint-default:
+	-ruff format -v
+	-djlint --reformat --format-css --format-js .
+	-ruff check -v --fix
 
 django-shell-default:
 	python manage.py shell
@@ -3758,14 +3851,12 @@ html-error-default:
 jenkins-init-default:
 	@echo "$$JENKINS_FILE" > Jenkinsfile
 
-lint-default:
-	-ruff format -v
-	-djlint --reformat --format-css --format-js .
-	-ruff check -v --fix
-
 makefile-custom-default:
 	@echo "$$MAKEFILE_CUSTOM" > $(MAKEFILE_CUSTOM_FILE)
 	-$(GIT_ADD) $(MAKEFILE_CUSTOM_FILE)
+
+makefile-list-defines-default:
+	@grep '^define [A-Za-z_][A-Za-z0-9_]*' Makefile
 
 make-default:
 	-$(GIT_ADD) Makefile
@@ -3843,17 +3934,22 @@ plone-clean-default:
 	$(DEL_DIR) $(PROJECT_NAME)
 	$(DEL_DIR) $(PACKAGE_NAME)
 
-plone-init-default:
+plone-init-default: gitignore plone-install plone-instance plone-serve
+
+plone-install-default:
 	$(PIP_ENSURE)
-	python -m pip install plone -c $(PIP_CONSTRAINTS_PLONE)
-	mkwsgiinstance -d $(PACKAGE_NAME) -u admin:admin
-	cat $(PACKAGE_NAME)/etc/zope.ini | sed -e 's/host = 127.0.0.1/host = 0.0.0.0/; s/port = 8080/port = 8000/' > $(TMPDIR)/zope.ini
-	mv -f $(TMPDIR)/zope.ini $(PACKAGE_NAME)/etc/zope.ini
-	@echo "Created $(PROJECT_NAME)!"
-	$(MAKE) plone-serve
+	python -m pip install plone -c $(PIP_INSTALL_PLONE_CONSTRAINTS)
+
+plone-instance-default:
+	mkwsgiinstance -d backend -u admin:admin
+	cat backend/etc/zope.ini | sed -e 's/host = 127.0.0.1/host = 0.0.0.0/; s/port = 8080/port = 8000/' > $(TMPDIR)/zope.ini
+	mv -f $(TMPDIR)/zope.ini backend/etc/zope.ini
+	-$(GIT_ADD) backend/etc/site.zcml
+	-$(GIT_ADD) backend/etc/zope.conf
+	-$(GIT_ADD) backend/etc/zope.ini
 
 plone-serve-default:
-	runwsgi $(PACKAGE_NAME)/etc/zope.ini
+	runwsgi backend/etc/zope.ini
 
 plone-build-default:
 	buildout
@@ -4142,6 +4238,7 @@ cp-lint-default: git-commit-lint git-push
 cp-upgrade-default: git-commit-upgrade git-push
 cp-wording-default: git-commit-wording git-push
 create-default: eb-create
+cu-default: git-commit-clean-up git-push
 d-default: deploy
 db-dump-default: eb-pg-export
 db-export-default: eb-pg-export
@@ -4152,7 +4249,6 @@ db-shell-default: django-db-shell
 dbshell-default: django-db-shell
 deploy-default: eb-deploy
 django-clean-default: wagtail-clean
-djlint-default: lint-djlint
 e-default: edit
 eb-env-default: eb-print-env
 eb-export-default: eb-pg-export
@@ -4177,7 +4273,10 @@ install-dev-default: pip-install-dev
 install-test-default: pip-install-test
 l-default: lint
 last-default: git-commit-last
+ld-default: makefile-list-defines
 license-default: python-license
+lint-default: django-lint
+list-defines-default: makefile-list-defines
 logs-default: eb-logs
 m-default: django-migrate
 migrate-default: django-migrate

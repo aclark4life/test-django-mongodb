@@ -69,6 +69,7 @@ django-install-minimal: django-install-minimal-default
 	pip install -e git+ssh://git@github.com/aclark4life/django-mongodb.git#egg=django-mongodb
 
 django-migrate:
+	mkdir backend/migrations
 	python manage.py makemigrations auth admin contenttypes
 	$(GIT_ADD) $(MONGODB_MIGRATIONS_DIR)/*.py
 	$(MAKE) django-migrate-default
