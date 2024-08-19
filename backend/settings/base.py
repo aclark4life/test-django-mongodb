@@ -20,7 +20,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = "django-insecure-)1_n0@6u##d0y&ui+*=g$qn(!091g1!mo-ik-gzzur#_$jt@l-"
+SECRET_KEY = "django-insecure-n0$v0@uy%4#v-3^xd-h6h91(+7hwg&dvfad=cg6sqz-405jk#!"
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
@@ -176,13 +176,16 @@ DATABASES = {
 DJANGO_COMPAT_CHECK_DISABLED = True
 DEFAULT_AUTO_FIELD = "django_mongodb.fields.MongoAutoField"
 MIGRATION_MODULES = {
+    "account": "backend.migrations.account",
     "admin": "backend.migrations.admin",
     "auth": "backend.migrations.auth",
     "contenttypes": "backend.migrations.contenttypes",
 }
+INSTALLED_APPS.remove("allauth.account")
 INSTALLED_APPS.remove("django.contrib.admin")
 INSTALLED_APPS.remove("django.contrib.auth")
 INSTALLED_APPS.remove("django.contrib.contenttypes")
+INSTALLED_APPS.append("backend.apps.MongoAccountConfig")
 INSTALLED_APPS.append("backend.apps.MongoAdminConfig")
 INSTALLED_APPS.append("backend.apps.MongoAuthConfig")
 INSTALLED_APPS.append("backend.apps.MongoContentTypesConfig")

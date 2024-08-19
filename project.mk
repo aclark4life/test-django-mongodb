@@ -40,13 +40,16 @@ DATABASES = {
 DJANGO_COMPAT_CHECK_DISABLED = True
 DEFAULT_AUTO_FIELD = "django_mongodb.fields.MongoAutoField"
 MIGRATION_MODULES = {
+    "account": "backend.migrations.account",
     "admin": "backend.migrations.admin",
     "auth": "backend.migrations.auth",
     "contenttypes": "backend.migrations.contenttypes",
 }
+INSTALLED_APPS.remove("allauth.account")
 INSTALLED_APPS.remove("django.contrib.admin")
 INSTALLED_APPS.remove("django.contrib.auth")
 INSTALLED_APPS.remove("django.contrib.contenttypes")
+INSTALLED_APPS.append("backend.apps.MongoAccountConfig")
 INSTALLED_APPS.append("backend.apps.MongoAdminConfig")
 INSTALLED_APPS.append("backend.apps.MongoAuthConfig")
 INSTALLED_APPS.append("backend.apps.MongoContentTypesConfig")
@@ -73,7 +76,7 @@ django-install: django-install-default
 
 django-migrate:
 	-mkdir backend/migrations
-	python manage.py makemigrations auth admin contenttypes
+	python manage.py makemigrations account auth admin contenttypes
 	-$(GIT_ADD) $(MONGODB_MIGRATIONS_DIR)/*.py
 	$(MAKE) django-migrate-default
 
