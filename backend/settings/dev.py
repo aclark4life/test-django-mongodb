@@ -42,7 +42,10 @@ LOGGING = {
         },
     },
 }
-INTERNAL_IPS = ["127.0.0.1",]
+INTERNAL_IPS = [
+    "127.0.0.1",
+]
+MIDDLEWARE.append("debug_toolbar.middleware.DebugToolbarMiddleware")  # noqa
+MIDDLEWARE.append("hijack.middleware.HijackUserMiddleware")  # noqa
 INSTALLED_APPS.append('django.contrib.admindocs')  # noqa
-MIDDLEWARE.append('debug_toolbar.middleware.DebugToolbarMiddleware')  # noqa
-SECRET_KEY = '8WHtbI97KcFL8obHk82Iy1QFsSVrYCPs//a1MUvKh96ygaTVQokK8PEc1B/cNRRW'
+SECRET_KEY = '6gOqQ5LcEIC1Vw7XyPdMK2qPLPcpsFpBsnFk5WP1Np0xIOsqWPfUqERBzOObmKD1'

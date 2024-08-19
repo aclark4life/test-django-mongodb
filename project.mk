@@ -68,6 +68,9 @@ django-custom-admin: django-custom-admin-default
 django-install-minimal: django-install-minimal-default
 	pip install -e git+ssh://git@github.com/aclark4life/django-mongodb.git#egg=django-mongodb
 
+django-install: django-install-default
+	pip install -e git+ssh://git@github.com/aclark4life/django-mongodb.git#egg=django-mongodb
+
 django-migrate:
 	-mkdir backend/migrations
 	python manage.py makemigrations auth admin contenttypes
@@ -75,6 +78,10 @@ django-migrate:
 	$(MAKE) django-migrate-default
 
 django-settings-minimal: django-settings-minimal-default
+	$(ADD_DIR) $(MONGODB_MIGRATIONS_DIR)
+	@echo "$$DJANGO_MONGODB_SETTINGS" >> $(DJANGO_SETTINGS_BASE_FILE)
+
+django-settings-base: django-settings-base-default
 	$(ADD_DIR) $(MONGODB_MIGRATIONS_DIR)
 	@echo "$$DJANGO_MONGODB_SETTINGS" >> $(DJANGO_SETTINGS_BASE_FILE)
 # ------------------------ 
