@@ -2,9 +2,7 @@
 
 import django.contrib.auth.models
 import django.contrib.auth.validators
-import django.db.models.deletion
 import django.utils.timezone
-import django_mongodb.fields.auto
 from django.db import migrations, models
 
 
@@ -13,88 +11,17 @@ class Migration(migrations.Migration):
     initial = True
 
     dependencies = [
-        ("contenttypes", "0001_initial"),
+        ("auth", "__first__"),
     ]
 
     operations = [
-        migrations.CreateModel(
-            name="Permission",
-            fields=[
-                (
-                    "id",
-                    django_mongodb.fields.auto.MongoAutoField(
-                        auto_created=True,
-                        db_column="_id",
-                        primary_key=True,
-                        serialize=False,
-                        verbose_name="ID",
-                    ),
-                ),
-                ("name", models.CharField(max_length=255, verbose_name="name")),
-                ("codename", models.CharField(max_length=100, verbose_name="codename")),
-                (
-                    "content_type",
-                    models.ForeignKey(
-                        on_delete=django.db.models.deletion.CASCADE,
-                        to="contenttypes.contenttype",
-                        verbose_name="content type",
-                    ),
-                ),
-            ],
-            options={
-                "verbose_name": "permission",
-                "verbose_name_plural": "permissions",
-                "ordering": [
-                    "content_type__app_label",
-                    "content_type__model",
-                    "codename",
-                ],
-                "unique_together": {("content_type", "codename")},
-            },
-            managers=[
-                ("objects", django.contrib.auth.models.PermissionManager()),
-            ],
-        ),
-        migrations.CreateModel(
-            name="Group",
-            fields=[
-                (
-                    "id",
-                    django_mongodb.fields.auto.MongoAutoField(
-                        auto_created=True,
-                        db_column="_id",
-                        primary_key=True,
-                        serialize=False,
-                        verbose_name="ID",
-                    ),
-                ),
-                (
-                    "name",
-                    models.CharField(max_length=150, unique=True, verbose_name="name"),
-                ),
-                (
-                    "permissions",
-                    models.ManyToManyField(
-                        blank=True, to="auth.permission", verbose_name="permissions"
-                    ),
-                ),
-            ],
-            options={
-                "verbose_name": "group",
-                "verbose_name_plural": "groups",
-            },
-            managers=[
-                ("objects", django.contrib.auth.models.GroupManager()),
-            ],
-        ),
         migrations.CreateModel(
             name="User",
             fields=[
                 (
                     "id",
-                    django_mongodb.fields.auto.MongoAutoField(
+                    models.BigAutoField(
                         auto_created=True,
-                        db_column="_id",
                         primary_key=True,
                         serialize=False,
                         verbose_name="ID",
@@ -171,25 +98,25 @@ class Migration(migrations.Migration):
                     ),
                 ),
                 (
+                    "user_theme_preference",
+                    models.CharField(
+                        choices=[("light", "Light Theme"), ("dark", "Dark Theme")],
+                        default="light",
+                        max_length=10,
+                    ),
+                ),
+                ("bio", models.TextField(blank=True, null=True)),
+                ("rate", models.FloatField(blank=True, null=True)),
+                (
                     "groups",
                     models.ManyToManyField(
-                        blank=True,
-                        help_text="The groups this user belongs to. A user will get all permissions granted to each of their groups.",
-                        related_name="user_set",
-                        related_query_name="user",
-                        to="auth.group",
-                        verbose_name="groups",
+                        blank=True, related_name="siteuser_set", to="auth.group"
                     ),
                 ),
                 (
                     "user_permissions",
                     models.ManyToManyField(
-                        blank=True,
-                        help_text="Specific permissions for this user.",
-                        related_name="user_set",
-                        related_query_name="user",
-                        to="auth.permission",
-                        verbose_name="user permissions",
+                        blank=True, related_name="siteuser_set", to="auth.permission"
                     ),
                 ),
             ],
@@ -197,7 +124,6 @@ class Migration(migrations.Migration):
                 "verbose_name": "user",
                 "verbose_name_plural": "users",
                 "abstract": False,
-                "swappable": "AUTH_USER_MODEL",
             },
             managers=[
                 ("objects", django.contrib.auth.models.UserManager()),
