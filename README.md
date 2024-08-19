@@ -1,6 +1,6 @@
 # test-django-mongodb
 
-- [*] `make django-init-minimal`
+- [x] `make django-init-minimal`
 - [ ] `make django-init`
 - [ ] `make wagtail-init`
 
