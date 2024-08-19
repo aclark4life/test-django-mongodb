@@ -1,4 +1,4 @@
--e git+ssh://git@github.com/aclark4life/django-mongodb.git@2c1fea9d0cd501bd0bb9c11dc30662c064e0b9c2#egg=django_mongodb
+-e git+ssh://git@github.com/aclark4life/django-mongodb.git@58aad95bcb4ef72eb7222712da43eedc13990f64#egg=django_mongodb
 Django==5.1
 Faker==27.0.0
 Jinja2==3.1.4
