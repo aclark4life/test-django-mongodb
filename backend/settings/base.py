@@ -20,7 +20,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = "django-insecure-2+zvnr_=gy$2d9xkrg*r^ze3fevohh%*7(^aoiclt@krfz6$tv"
+SECRET_KEY = "django-insecure-n(pl!v9us(#-md5zviqr@_l1juw*i*94l-psl87(zlej-ukdda"
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
@@ -122,12 +122,30 @@ STATIC_URL = "static/"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 # test-django-mongodb
-# Uncomment the next two lines to enable the custom admin
+#
+# Uncomment next two lines to enable custom admin
 # INSTALLED_APPS = [app for app in INSTALLED_APPS if app != 'django.contrib.admin']
 # INSTALLED_APPS.append('backend.apps.CustomAdminConfig')
 import os  # noqa
 import dj_database_url  # noqa
 
+DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+EXPLORER_CONNECTIONS = {"Default": "default"}
+EXPLORER_DEFAULT_CONNECTION = "default"
+LOGIN_REDIRECT_URL = "/"
+PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+SILENCED_SYSTEM_CHECKS = ["django_recaptcha.recaptcha_test_key_error"]
+BASE_DIR = os.path.dirname(PROJECT_DIR)
+STATICFILES_DIRS = []
+WEBPACK_LOADER = {
+    "MANIFEST_FILE": os.path.join(BASE_DIR, "frontend/build/manifest.json"),
+}
+STATICFILES_DIRS.append(os.path.join(BASE_DIR, "frontend/build"))
+TEMPLATES[0]["DIRS"].append(os.path.join(PROJECT_DIR, "templates"))
+AUTHENTICATION_BACKENDS = [
+    "django.contrib.auth.backends.ModelBackend",
+    "allauth.account.auth_backends.AuthenticationBackend",
+]
 REST_FRAMEWORK = {
     # Use Django's standard `django.contrib.auth` permissions,
     # or allow read-only access for unauthenticated users.
@@ -156,17 +174,6 @@ INSTALLED_APPS.append("explorer")
 MIDDLEWARE.append("allauth.account.middleware.AccountMiddleware")
 CRISPY_TEMPLATE_PACK = "bootstrap5"
 CRISPY_ALLOWED_TEMPLATE_PACKS = "bootstrap5"
-DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
-EXPLORER_CONNECTIONS = { 'Default': 'default' }
-EXPLORER_DEFAULT_CONNECTION = 'default'
-LOGIN_REDIRECT_URL = '/'
-PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SILENCED_SYSTEM_CHECKS = ['django_recaptcha.recaptcha_test_key_error']
-BASE_DIR = os.path.dirname(PROJECT_DIR)
-STATICFILES_DIRS = []
-STATICFILES_DIRS.append(os.path.join(BASE_DIR, 'frontend/build'))
-TEMPLATES[0]['DIRS'].append(os.path.join(PROJECT_DIR, 'templates'))
-WEBPACK_LOADER = { 'MANIFEST_FILE': os.path.join(BASE_DIR, 'frontend/build/manifest.json'), }
 DATABASES = {
     'default': {
 	'ENGINE': 'django_mongodb',
@@ -189,6 +196,6 @@ INSTALLED_APPS.append("backend.apps.MongoAccountConfig")
 INSTALLED_APPS.append("backend.apps.MongoAdminConfig")
 INSTALLED_APPS.append("backend.apps.MongoAuthConfig")
 INSTALLED_APPS.append("backend.apps.MongoContentTypesConfig")
-INSTALLED_APPS.append('siteuser')  # noqa
-AUTH_USER_MODEL = 'siteuser.User'
-INSTALLED_APPS.append('home')  # noqa
+INSTALLED_APPS.append("siteuser")  # noqa
+AUTH_USER_MODEL = "siteuser.User"
+INSTALLED_APPS.append("home")
