@@ -87,4 +87,7 @@ django-settings-minimal: django-settings-minimal-default
 django-settings-base: django-settings-base-default
 	$(ADD_DIR) $(MONGODB_MIGRATIONS_DIR)
 	@echo "$$DJANGO_MONGODB_SETTINGS" >> $(DJANGO_SETTINGS_BASE_FILE)
+
+install: 
+	$(MAKE) npm-install django-install
 # ------------------------ 
