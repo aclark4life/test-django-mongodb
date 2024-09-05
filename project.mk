@@ -13,19 +13,19 @@ from allauth.account.apps import AccountConfig
 
 
 class MongoAdminConfig(AdminConfig):
-    default_auto_field = "django_mongodb.fields.MongoAutoField"
+    default_auto_field = "django_mongodb.fields.ObjectIdAutoField"
 
 
 class MongoAuthConfig(AuthConfig):
-    default_auto_field = "django_mongodb.fields.MongoAutoField"
+    default_auto_field = "django_mongodb.fields.ObjectIdAutoField"
 
 
 class MongoContentTypesConfig(ContentTypesConfig):
-    default_auto_field = "django_mongodb.fields.MongoAutoField"
+    default_auto_field = "django_mongodb.fields.ObjectIdAutoField"
 
 
 class MongoAccountConfig(AccountConfig):
-    default_auto_field = "django_mongodb.fields.MongoAutoField"
+    default_auto_field = "django_mongodb.fields.ObjectIdAutoField"
 endef
 # ------------------------ 
 
@@ -39,7 +39,7 @@ DATABASES = {
     }
 }
 DJANGO_COMPAT_CHECK_DISABLED = True
-DEFAULT_AUTO_FIELD = "django_mongodb.fields.MongoAutoField"
+DEFAULT_AUTO_FIELD = "django_mongodb.fields.ObjectIdAutoField"
 MIGRATION_MODULES = {
     "account": "backend.migrations.account",
     "admin": "backend.migrations.admin",
