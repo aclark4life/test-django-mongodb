@@ -70,12 +70,10 @@ django-custom-admin: django-custom-admin-default
 	@echo "$$DJANGO_MONGODB_APPS" >> $(DJANGO_BACKEND_APPS_FILE)
 
 django-install-minimal: django-install-minimal-default
-	# pip install -e git+ssh://git@github.com/aclark4life/django-mongodb.git#egg=django-mongodb
-	pip install -e git+ssh://git@github.com/aclark4life/django-mongo.git#egg=django-mongo
+	pip install -e git+ssh://git@github.com/aclark4life/django-mongodb.git#egg=django-mongodb
 
 django-install: django-install-default
-	# pip install -e git+ssh://git@github.com/aclark4life/django-mongodb.git#egg=django-mongodb
-	pip install -e git+ssh://git@github.com/aclark4life/django-mongo.git#egg=django-mongo
+	pip install -e git+ssh://git@github.com/aclark4life/django-mongodb.git#egg=django-mongodb
 
 django-migrate:
 	-mkdir backend/migrations
