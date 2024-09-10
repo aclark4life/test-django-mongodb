@@ -2077,6 +2077,7 @@ db.sqlite3
 static/
 backend/inituser
 backend/var
+.venv/
 endef
 
 define GIT_COMMIT_MESSAGE
@@ -2577,7 +2578,7 @@ define PROJECT_CUSTOM
 # PROJECT_NAME := my-new-project
 endef
 
-define PYTHON_LICENSE_TXT
+define LICENSE_TXT
 MIT License
 
 Copyright (c) [YEAR] [OWNER NAME]
@@ -3336,10 +3337,10 @@ export DJANGO_API_SERIALIZERS \
         GIT_COMMIT_IGNORE \
         GIT_COMMIT_MESSAGE \
         JENKINS_FILE \
+        LICENSE_TXT \
         PROJECT_CUSTOM \
         PIP_INSTALL_REQUIREMENTS_TEST \
         PROGRAMMING_INTERVIEW \
-        PYTHON_LICENSE_TXT \
         PYTHON_PROJECT_TOML \
         SEPARATOR \
         WAGTAIL_BLOCK_CAROUSEL \
@@ -4233,6 +4234,11 @@ help-default:
 jenkins-init-default:
 	@echo "$$JENKINS_FILE" > Jenkinsfile
 
+.PHONY: license-default
+license-default:
+	@echo "$$LICENSE_TXT" > LICENSE.txt
+	-$(GIT_ADD) LICENSE.txt
+
 # --------------------------------------------------------------------------------
 # Makefile-specific targets
 # --------------------------------------------------------------------------------
@@ -4435,11 +4441,6 @@ programming-interview-default:
 # --------------------------------------------------------------------------------
 #  python targets
 # --------------------------------------------------------------------------------
-
-.PHONY: python-license-default
-python-license-default:
-	@echo "$(PYTHON_LICENSE_TXT)" > LICENSE.txt
-	-$(GIT_ADD) LICENSE.txt
 
 .PHONY: python-project-default
 python-project-default:
@@ -4750,11 +4751,14 @@ deps-default: pip-deps
 .PHONY: dump-default
 dump-default: db-dump
 
+.PHONY: e-default
+e-default: edit
+
 .PHONY: edit-default
 edit-default: readme-edit
 
-.PHONY: e-default
-e-default: edit
+.PHONY: empty-default
+empty-default: git-commit-empty git-push
 
 .PHONY: fp-default
 fp-default: git-push-force
@@ -4830,6 +4834,9 @@ reword-default: git-commit-message-reword git-push
 
 .PHONY: s-default
 s-default: serve
+
+.PHONY: sdist-default
+sdist-default: python-sdist
 
 .PHONY: serve-default
 serve-default: django-serve
