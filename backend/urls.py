@@ -8,12 +8,3 @@ urlpatterns = [
 if settings.DEBUG:
     urlpatterns += [path("__debug__/", include("debug_toolbar.urls"))]
 urlpatterns += [path("accounts/", include("allauth.urls"))]
-urlpatterns += [path("user/", include("siteuser.urls"))]
-urlpatterns += [path("", include("home.urls"))]
-from rest_framework import routers  # noqa
-from .api import UserViewSet, api  # noqa
-
-router = routers.DefaultRouter()
-router.register(r"users", UserViewSet)
-# urlpatterns += [path("api/", include(router.urls))]
-urlpatterns += [path("api/", api.urls)]
