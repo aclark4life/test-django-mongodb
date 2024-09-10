@@ -66,7 +66,7 @@ export DJANGO_MONGODB_SETTINGS
 db-init:
 	mongosh --eval "db.dropDatabase()"
 
-django-admin-custom: django-custom-admin-default
+django-admin-custom: django-admin-custom-default
 	@echo "$$DJANGO_MONGODB_APPS" >> $(DJANGO_BACKEND_APPS_FILE)
 
 django-install-minimal: django-install-minimal-default
