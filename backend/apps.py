@@ -10,16 +10,16 @@ from allauth.account.apps import AccountConfig
 
 
 class MongoAdminConfig(AdminConfig):
-    default_auto_field = "django_mongodb.fields.MongoAutoField"
+    default_auto_field = "django_mongodb.fields.ObjectIdAutoField"
 
 
 class MongoAuthConfig(AuthConfig):
-    default_auto_field = "django_mongodb.fields.MongoAutoField"
+    default_auto_field = "django_mongodb.fields.ObjectIdAutoField"
 
 
 class MongoContentTypesConfig(ContentTypesConfig):
-    default_auto_field = "django_mongodb.fields.MongoAutoField"
+    default_auto_field = "django_mongodb.fields.ObjectIdAutoField"
 
 
 class MongoAccountConfig(AccountConfig):
-    default_auto_field = "django_mongodb.fields.MongoAutoField"
+    default_auto_field = "django_mongodb.fields.ObjectIdAutoField"
