@@ -67,7 +67,7 @@ db-init:
 	mongosh --eval "db.dropDatabase()"
 
 django-admin-custom: django-admin-custom-default
-	@echo "$$DJANGO_MONGODB_APPS" >> $(DJANGO_BACKEND_APPS_FILE)
+	@echo "$$DJANGO_MONGODB_APPS" >> $(DJANGO_ADMIN_CUSTOM_APPS_FILE)
 
 django-install-minimal: django-install-minimal-default
 	pip install -e git+ssh://git@github.com/aclark4life/django-mongodb.git#egg=django-mongodb
