@@ -33,8 +33,7 @@ endef
 define DJANGO_MONGODB_SETTINGS
 DATABASES = {
     'default': {
-	# 'ENGINE': 'django_mongodb',
-	'ENGINE': 'django_mongo',
+	'ENGINE': 'django_mongodb',
 	'NAME': 'test',
     }
 }
